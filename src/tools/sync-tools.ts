@@ -57,7 +57,7 @@ export function registerSyncTools(
           content: [
             {
               type: 'text' as const,
-              text: 'Error: Could not extract body. Make sure <!-- 본문 시작 --> and <!-- MCP 파싱 마커 --> markers exist.',
+              text: 'Error: Could not extract body. Use one of these formats:\n1. Standard: YAML frontmatter (---) + # Title + body\n2. Plain: # Title + body\n3. Legacy: <!-- 본문 시작 --> ... <!-- MCP 파싱 마커 --> markers',
             },
           ],
           isError: true,
@@ -89,6 +89,7 @@ export function registerSyncTools(
           meta_title: parsed.metaTitle || undefined,
           meta_description: parsed.metaDescription || undefined,
           custom_excerpt: parsed.excerpt || undefined,
+          ...(parsed.tags.length > 0 && { tags: parsed.tags.map(name => ({ name })) }),
         });
         action = 'updated';
       } else {
@@ -100,6 +101,7 @@ export function registerSyncTools(
           meta_title: parsed.metaTitle || undefined,
           meta_description: parsed.metaDescription || undefined,
           custom_excerpt: parsed.excerpt || undefined,
+          ...(parsed.tags.length > 0 && { tags: parsed.tags.map(name => ({ name })) }),
           status: 'draft',
         });
         action = 'created';
@@ -138,17 +140,17 @@ export function registerSyncTools(
               `| Meta title | ${parsed.metaTitle || 'N/A'} |`,
               `| Meta desc | ${parsed.metaDescription || 'N/A'} |`,
               `| Excerpt | ${parsed.excerpt || 'N/A'} |`,
-              `| Source project | ${parsed.sourceProject || 'N/A'} |`,
               '',
-              `**Tags are not yet assigned.** Review the content and pick appropriate tags from the list below, then use \`ghost_update_post\` to apply them.`,
+              parsed.tags.length > 0
+                ? `**Tags applied:** ${parsed.tags.join(', ')}`
+                : `**Tags are not yet assigned.** Review the content and pick appropriate tags from the list below, then use \`ghost_update_post\` to apply them.`,
               '',
               `## Existing tags`,
               tagList,
               '',
-              `## Content keywords for reference`,
-              `Source project: ${parsed.sourceProject || 'N/A'}`,
-              `Tech stack: ${parsed.techStack.join(', ') || 'N/A'}`,
-              `Keywords: ${parsed.keywords.join(', ') || 'N/A'}`,
+              parsed.tags.length > 0
+                ? `## Tags from frontmatter\n${parsed.tags.join(', ')}`
+                : '',
             ].join('\n'),
           },
         ],

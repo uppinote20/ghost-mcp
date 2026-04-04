@@ -89,7 +89,7 @@ export function registerSyncTools(
           meta_title: parsed.metaTitle || undefined,
           meta_description: parsed.metaDescription || undefined,
           custom_excerpt: parsed.excerpt || undefined,
-          ...(parsed.tags.length > 0 && { tags: parsed.tags.map(name => ({ name })) }),
+          tags: parsed.tags.map(name => ({ name })),
         });
         action = 'updated';
       } else {
@@ -143,14 +143,10 @@ export function registerSyncTools(
               '',
               parsed.tags.length > 0
                 ? `**Tags applied:** ${parsed.tags.join(', ')}`
-                : `**Tags are not yet assigned.** Review the content and pick appropriate tags from the list below, then use \`ghost_update_post\` to apply them.`,
+                : `**Tags are not yet assigned.** Pick from the list below, then use \`ghost_update_post\` to apply.`,
               '',
               `## Existing tags`,
               tagList,
-              '',
-              parsed.tags.length > 0
-                ? `## Tags from frontmatter\n${parsed.tags.join(', ')}`
-                : '',
             ].join('\n'),
           },
         ],

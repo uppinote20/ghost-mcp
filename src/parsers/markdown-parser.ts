@@ -66,7 +66,12 @@ function parseFrontmatterFormat(content: string): ParsedBlogPost {
   const bodyContent = afterFirst.slice(closingIdx).replace(FRONTMATTER_FENCE, '').trim();
 
   // Simple YAML key-value parser (no dependency needed)
-  const meta = parseSimpleYaml(yamlBlock);
+  // Normalize hyphenated keys (meta-title → meta_title)
+  const rawMeta = parseSimpleYaml(yamlBlock);
+  const meta: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rawMeta)) {
+    meta[k.replace(/-/g, '_')] = v;
+  }
 
   // Title: from frontmatter or first # heading in body
   const titleMatch = bodyContent.match(/^# (.+)$/m);
@@ -140,25 +145,48 @@ function parseLegacyFormat(content: string): ParsedBlogPost {
   };
 }
 
-/** Minimal YAML parser for frontmatter (key: value, arrays) */
+/** Minimal YAML parser for frontmatter (key: value, inline/block arrays) */
 function parseSimpleYaml(yaml: string): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  for (const line of yaml.split('\n')) {
-    const match = line.match(/^(\w[\w_]*):\s*(.*)$/);
+  const lines = yaml.split('\n');
+  let currentKey = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    // Block sequence item: "  - value"
+    const seqMatch = lines[i].match(/^\s+-\s+(.+)$/);
+    if (seqMatch && currentKey) {
+      const arr = result[currentKey];
+      if (Array.isArray(arr)) {
+        arr.push(seqMatch[1].trim().replace(/^["']|["']$/g, ''));
+      }
+      continue;
+    }
+
+    // Key-value pair (supports hyphens in keys: meta-title, og-image)
+    const match = lines[i].match(/^([\w][\w_-]*):\s*(.*)$/);
     if (!match) continue;
     const [, key, rawValue] = match;
     const value = rawValue.trim();
+    currentKey = key;
 
-    // Array: [a, b, c]
+    // Inline array: [a, b, c]
     if (value.startsWith('[') && value.endsWith(']')) {
       result[key] = value.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
     } else if (value === '' || value === '~' || value === 'null') {
-      result[key] = '';
+      // Empty value — could be start of a block sequence
+      result[key] = [];
     } else {
-      // Strip surrounding quotes
       result[key] = value.replace(/^["']|["']$/g, '');
     }
   }
+
+  // Convert empty arrays back to empty string if no items were added
+  for (const [key, val] of Object.entries(result)) {
+    if (Array.isArray(val) && val.length === 0) {
+      result[key] = '';
+    }
+  }
+
   return result;
 }
 

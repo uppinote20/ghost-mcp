@@ -69,7 +69,7 @@ Body without heading.
     expect(result.body).toBe('Body without heading.');
   });
 
-  it('heading title overrides frontmatter title', () => {
+  it('frontmatter title takes priority over heading', () => {
     const md = `---
 title: Frontmatter Title
 ---
@@ -78,12 +78,9 @@ title: Frontmatter Title
 
 Body here.
 `;
-    // First # heading found in body, so frontmatter title is fallback
-    // Actually the code checks meta.title || heading, but heading is found
-    // Let's verify the behavior
     const result = parseBlogMarkdown(md);
-    // Title from frontmatter is used only when no heading exists
-    expect(result.title).toBeTruthy();
+    expect(result.title).toBe('Frontmatter Title');
+    expect(result.body).toBe('Body here.');
   });
 
   it('handles empty frontmatter values', () => {
@@ -126,6 +123,36 @@ tags: dev, ghost, mcp
 Body.
 `;
     expect(parseBlogMarkdown(md).tags).toEqual(['dev', 'ghost', 'mcp']);
+  });
+
+  it('handles YAML block sequence tags', () => {
+    const md = `---
+tags:
+  - dev
+  - ghost
+  - mcp
+---
+
+# Title
+
+Body.
+`;
+    expect(parseBlogMarkdown(md).tags).toEqual(['dev', 'ghost', 'mcp']);
+  });
+
+  it('handles hyphenated YAML keys', () => {
+    const md = `---
+meta-title: Hyphenated Key
+meta_description: Underscore Key
+---
+
+# Title
+
+Body.
+`;
+    const result = parseBlogMarkdown(md);
+    expect(result.metaTitle).toBe('Hyphenated Key');
+    expect(result.metaDescription).toBe('Underscore Key');
   });
 });
 

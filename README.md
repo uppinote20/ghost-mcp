@@ -16,7 +16,7 @@ Create, edit, publish, and sync blog posts directly from Claude Code, Cursor, or
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-username/ghost-mcp.git
+git clone https://github.com/uppinote20/ghost-mcp.git
 cd ghost-mcp
 npm install
 npm run build
@@ -92,6 +92,41 @@ If you prefer to configure manually, add to your MCP settings:
 | `ghost_analyze_tags` | Find unused, low-use, and similar tags |
 | `ghost_push_local` | Push a local markdown file to Ghost as a draft |
 | `ghost_sync_status` | Compare local files with Ghost posts |
+
+## Markdown Formats for `ghost_push_local`
+
+Three formats are auto-detected:
+
+**1. YAML Frontmatter (recommended)**
+
+```markdown
+---
+slug: my-post
+meta_title: SEO Title
+meta_description: A short description
+excerpt: Custom excerpt
+tags: [dev, ghost]   # or block sequence:
+# tags:
+#   - dev
+#   - ghost
+---
+
+# My Blog Post
+
+Content here...
+```
+
+**2. Plain Markdown**
+
+```markdown
+# My Blog Post
+
+Content here — no metadata, Ghost auto-generates the slug.
+```
+
+**3. Legacy Markers** (internal)
+
+Uses `<!-- 본문 시작 -->` / `<!-- MCP 파싱 마커 -->` HTML comment markers with an SEO table.
 
 ## Security
 

@@ -6,119 +6,237 @@ import {
   toLexical,
 } from './markdown-parser.js';
 
-// ── parseBlogMarkdown ────────────────────────────
+// ── Standard frontmatter format ──────────────────
 
-describe('parseBlogMarkdown', () => {
-  const validMarkdown = `# My Blog Post Title
-
-**소스 프로젝트:** \`ghost-mcp\`
-**기술 스택:** TypeScript, Node.js
-**키워드:** MCP, Ghost, 블로그
-
+describe('parseBlogMarkdown — frontmatter format', () => {
+  const frontmatterMd = `---
+slug: my-post
+meta_title: SEO Title Here
+meta_description: A description for search engines
+excerpt: A short excerpt
+tags: [dev, ghost, mcp]
 ---
 
-<!-- 본문 시작 -->
+# My Blog Post
 
-This is the **body** of the blog post.
+This is the body content.
 
-It has multiple paragraphs.
-
-<!-- MCP 파싱 마커: 본문은 여기까지, 아래는 SEO 설정 -->
-
-## Ghost SEO 설정
-
-| Field | Value |
-|-------|-------|
-| Post URL | \`my-blog-post-title\` |
-| Meta title | My Blog Post - SEO Title |
-| Meta description | A description for search engines |
-| Excerpt | A short excerpt for the post |
+It has **multiple** paragraphs.
 `;
 
   it('extracts title from # heading', () => {
-    const result = parseBlogMarkdown(validMarkdown);
-    expect(result.title).toBe('My Blog Post Title');
+    expect(parseBlogMarkdown(frontmatterMd).title).toBe('My Blog Post');
   });
 
-  it('extracts body between markers', () => {
-    const result = parseBlogMarkdown(validMarkdown);
-    expect(result.body).toContain('This is the **body**');
-    expect(result.body).toContain('multiple paragraphs');
-    // Should NOT include SEO section
-    expect(result.body).not.toContain('Ghost SEO');
+  it('extracts body after title', () => {
+    const result = parseBlogMarkdown(frontmatterMd);
+    expect(result.body).toContain('This is the body content.');
+    expect(result.body).toContain('**multiple** paragraphs');
+    expect(result.body).not.toContain('slug:');
   });
 
-  it('extracts slug from Post URL', () => {
-    const result = parseBlogMarkdown(validMarkdown);
-    expect(result.slug).toBe('my-blog-post-title');
+  it('extracts slug', () => {
+    expect(parseBlogMarkdown(frontmatterMd).slug).toBe('my-post');
   });
 
-  it('extracts meta title', () => {
-    const result = parseBlogMarkdown(validMarkdown);
-    expect(result.metaTitle).toBe('My Blog Post - SEO Title');
+  it('extracts meta_title', () => {
+    expect(parseBlogMarkdown(frontmatterMd).metaTitle).toBe('SEO Title Here');
   });
 
-  it('extracts meta description', () => {
-    const result = parseBlogMarkdown(validMarkdown);
-    expect(result.metaDescription).toBe(
+  it('extracts meta_description', () => {
+    expect(parseBlogMarkdown(frontmatterMd).metaDescription).toBe(
       'A description for search engines'
     );
   });
 
   it('extracts excerpt', () => {
-    const result = parseBlogMarkdown(validMarkdown);
-    expect(result.excerpt).toBe('A short excerpt for the post');
+    expect(parseBlogMarkdown(frontmatterMd).excerpt).toBe('A short excerpt');
   });
 
-  it('extracts source project', () => {
-    const result = parseBlogMarkdown(validMarkdown);
-    expect(result.sourceProject).toBe('ghost-mcp');
+  it('extracts tags as array', () => {
+    expect(parseBlogMarkdown(frontmatterMd).tags).toEqual(['dev', 'ghost', 'mcp']);
   });
 
-  it('extracts tech stack as array', () => {
-    const result = parseBlogMarkdown(validMarkdown);
-    expect(result.techStack).toEqual(['TypeScript', 'Node.js']);
-  });
+  it('supports title in frontmatter instead of heading', () => {
+    const md = `---
+title: From Frontmatter
+---
 
-  it('extracts keywords as array', () => {
-    const result = parseBlogMarkdown(validMarkdown);
-    expect(result.keywords).toEqual(['MCP', 'Ghost', '블로그']);
-  });
-
-  // ── Edge cases ──
-
-  it('returns empty strings when markers are missing', () => {
-    const result = parseBlogMarkdown('Just some text');
-    expect(result.title).toBe('');
-    expect(result.body).toBe('');
-    expect(result.slug).toBe('');
-  });
-
-  it('handles missing SEO section gracefully', () => {
-    const md = `# Title
-
-<!-- 본문 시작 -->
-Body here
-<!-- MCP 파싱 마커: end -->
+Body without heading.
 `;
     const result = parseBlogMarkdown(md);
-    expect(result.title).toBe('Title');
-    expect(result.body).toBe('Body here');
+    expect(result.title).toBe('From Frontmatter');
+    expect(result.body).toBe('Body without heading.');
+  });
+
+  it('frontmatter title takes priority over heading', () => {
+    const md = `---
+title: Frontmatter Title
+---
+
+# Heading Title
+
+Body here.
+`;
+    const result = parseBlogMarkdown(md);
+    expect(result.title).toBe('Frontmatter Title');
+    expect(result.body).toBe('Body here.');
+  });
+
+  it('handles empty frontmatter values', () => {
+    const md = `---
+slug:
+meta_title: ~
+---
+
+# Title
+
+Body.
+`;
+    const result = parseBlogMarkdown(md);
     expect(result.slug).toBe('');
     expect(result.metaTitle).toBe('');
+  });
+
+  it('handles quoted values', () => {
+    const md = `---
+slug: "my-slug"
+meta_title: 'Single Quoted'
+---
+
+# Title
+
+Body.
+`;
+    const result = parseBlogMarkdown(md);
+    expect(result.slug).toBe('my-slug');
+    expect(result.metaTitle).toBe('Single Quoted');
+  });
+
+  it('handles tags as comma-separated string', () => {
+    const md = `---
+tags: dev, ghost, mcp
+---
+
+# Title
+
+Body.
+`;
+    expect(parseBlogMarkdown(md).tags).toEqual(['dev', 'ghost', 'mcp']);
+  });
+
+  it('handles YAML block sequence tags', () => {
+    const md = `---
+tags:
+  - dev
+  - ghost
+  - mcp
+---
+
+# Title
+
+Body.
+`;
+    expect(parseBlogMarkdown(md).tags).toEqual(['dev', 'ghost', 'mcp']);
+  });
+
+  it('handles hyphenated YAML keys', () => {
+    const md = `---
+meta-title: Hyphenated Key
+meta_description: Underscore Key
+---
+
+# Title
+
+Body.
+`;
+    const result = parseBlogMarkdown(md);
+    expect(result.metaTitle).toBe('Hyphenated Key');
+    expect(result.metaDescription).toBe('Underscore Key');
+  });
+});
+
+// ── Plain markdown format ────────────────────────
+
+describe('parseBlogMarkdown — plain markdown', () => {
+  it('extracts title and body from plain markdown', () => {
+    const md = `# My Post
+
+This is the content.
+
+Second paragraph.
+`;
+    const result = parseBlogMarkdown(md);
+    expect(result.title).toBe('My Post');
+    expect(result.body).toContain('This is the content.');
+    expect(result.body).toContain('Second paragraph.');
+  });
+
+  it('returns empty title when no heading', () => {
+    const result = parseBlogMarkdown('Just some text without heading.');
+    expect(result.title).toBe('');
+    expect(result.body).toBe('Just some text without heading.');
+  });
+
+  it('returns empty metadata', () => {
+    const result = parseBlogMarkdown('# Title\n\nBody');
+    expect(result.slug).toBe('');
+    expect(result.metaTitle).toBe('');
+    expect(result.tags).toEqual([]);
   });
 
   it('handles title with special characters', () => {
     const md = `# React에서 "useState" vs useReducer — 비교 & 분석
 
-<!-- 본문 시작 -->
-content
-<!-- MCP 파싱 마커 -->
+content here
 `;
-    const result = parseBlogMarkdown(md);
-    expect(result.title).toBe(
+    expect(parseBlogMarkdown(md).title).toBe(
       'React에서 "useState" vs useReducer — 비교 & 분석'
     );
+  });
+});
+
+// ── Legacy marker format ─────────────────────────
+
+describe('parseBlogMarkdown — legacy marker format', () => {
+  const legacyMd = `# Legacy Post
+
+**소스 프로젝트:** \`ghost-mcp\`
+
+---
+
+<!-- 본문 시작 -->
+
+This is the **body**.
+
+<!-- MCP 파싱 마커: 본문은 여기까지 -->
+
+## Ghost SEO 설정
+
+| Field | Value |
+|-------|-------|
+| Post URL | \`legacy-slug\` |
+| Meta title | Legacy SEO Title |
+| Meta description | Legacy description |
+| Excerpt | Legacy excerpt |
+`;
+
+  it('detects legacy format by markers', () => {
+    const result = parseBlogMarkdown(legacyMd);
+    expect(result.title).toBe('Legacy Post');
+    expect(result.body).toBe('This is the **body**.');
+  });
+
+  it('extracts SEO fields from table', () => {
+    const result = parseBlogMarkdown(legacyMd);
+    expect(result.slug).toBe('legacy-slug');
+    expect(result.metaTitle).toBe('Legacy SEO Title');
+    expect(result.metaDescription).toBe('Legacy description');
+    expect(result.excerpt).toBe('Legacy excerpt');
+  });
+
+  it('returns empty tags for legacy format', () => {
+    expect(parseBlogMarkdown(legacyMd).tags).toEqual([]);
   });
 });
 
@@ -139,8 +257,7 @@ describe('toMobiledoc', () => {
   });
 
   it('returns valid JSON string', () => {
-    const result = toMobiledoc('test');
-    expect(() => JSON.parse(result)).not.toThrow();
+    expect(() => JSON.parse(toMobiledoc('test'))).not.toThrow();
   });
 });
 
@@ -163,7 +280,6 @@ describe('toLexical', () => {
   });
 
   it('returns valid JSON string', () => {
-    const result = toLexical('test');
-    expect(() => JSON.parse(result)).not.toThrow();
+    expect(() => JSON.parse(toLexical('test'))).not.toThrow();
   });
 });

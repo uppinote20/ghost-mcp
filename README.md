@@ -105,7 +105,10 @@ slug: my-post
 meta_title: SEO Title
 meta_description: A short description
 excerpt: Custom excerpt
-tags: [dev, ghost]
+tags: [dev, ghost]   # or block sequence:
+# tags:
+#   - dev
+#   - ghost
 ---
 
 # My Blog Post

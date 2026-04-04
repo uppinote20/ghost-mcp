@@ -1,6 +1,6 @@
 {
   "name": "ghost-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Ghost Blog Management MCP Server",
   "type": "module",
   "main": "dist/index.js",

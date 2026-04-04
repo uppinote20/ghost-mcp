@@ -342,3 +342,50 @@ describe('Sync Tools (MCP integration)', () => {
     expect(text).toContain('Sync Status');
   });
 });
+
+// ── Sync Tools — tag clearing regression ─────────
+
+describe('Sync Tools — tag clearing on update (regression #1)', () => {
+  let client: Client;
+  let ghost: GhostAdminApi;
+  let indexManager: IndexManager;
+  let syncDir: string;
+
+  beforeAll(async () => {
+    ghost = createMockGhost();
+    indexManager = new IndexManager();
+    syncDir = path.resolve(process.env.HOME || '~', 'blog-drafts');
+    await fs.mkdir(syncDir, { recursive: true });
+    ({ client } = await setupMcpClient(ghost, indexManager));
+  });
+
+  afterAll(async () => {
+    await client.close();
+    // Clean up test file
+    await fs.unlink(path.join(syncDir, 'tag-test.md')).catch(() => {});
+  });
+
+  it('sends empty tags array on update when markdown has no tags', async () => {
+    const testFile = path.join(syncDir, 'tag-test.md');
+    await fs.writeFile(testFile, '# No Tags Post\n\nBody without frontmatter tags.');
+
+    // Pre-seed index so push triggers update path
+    await indexManager.setEntry('tag-test.md', {
+      ghostId: '507f1f77bcf86cd799439011',
+      ghostSlug: 'tag-test',
+      ghostStatus: 'draft',
+      ghostUpdatedAt: '2026-01-01T00:00:00.000Z',
+      localHash: 'old-hash',
+      lastPushed: '2026-01-01T00:00:00.000Z',
+    });
+
+    await client.callTool({
+      name: 'ghost_push_local',
+      arguments: { file_path: testFile },
+    });
+
+    expect(ghost.updatePost).toHaveBeenCalledWith(
+      expect.objectContaining({ tags: [] })
+    );
+  });
+});

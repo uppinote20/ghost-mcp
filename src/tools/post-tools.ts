@@ -14,9 +14,11 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
     'List Ghost blog posts with optional filters',
     {
       status: z
-        .enum(['draft', 'published', 'scheduled'])
+        .enum(['draft', 'published', 'scheduled', 'sent'])
         .optional()
-        .describe('Filter by post status'),
+        .describe(
+          'Filter by post status. "sent" returns posts that were emailed as a newsletter (system-set, read-only — cannot be set via ghost_update_post).'
+        ),
       tag: z.string().optional().describe('Filter by tag slug'),
       search: z.string().optional().describe('Search in title and content'),
       limit: z.number().optional().describe('Max posts to return (default 50)'),

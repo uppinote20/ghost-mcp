@@ -10,12 +10,23 @@ import { registerPageTools } from './tools/page-tools.js';
 import { registerSyncTools } from './tools/sync-tools.js';
 import type { Config } from './config.js';
 
-const pkgPath = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  'package.json'
-);
-const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version: string };
+function loadPackageVersion(): string {
+  try {
+    const pkgPath = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      '..',
+      'package.json'
+    );
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as {
+      version?: string;
+    };
+    return pkg.version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+const PKG_VERSION = loadPackageVersion();
 
 const SERVER_INSTRUCTIONS = `Ghost blog management server.
 
@@ -31,7 +42,7 @@ Tool-selection guidance:
 
 export function createServer(config: Config): McpServer {
   const server = new McpServer(
-    { name: 'ghost-blog', version: pkg.version },
+    { name: 'ghost-blog', version: PKG_VERSION },
     { instructions: SERVER_INSTRUCTIONS }
   );
 

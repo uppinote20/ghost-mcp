@@ -3,7 +3,7 @@ export interface GhostPost {
   uuid: string;
   title: string;
   slug: string;
-  status: 'draft' | 'published' | 'scheduled';
+  status: 'draft' | 'published' | 'scheduled' | 'sent';
   published_at: string | null;
   updated_at: string;
   created_at: string;

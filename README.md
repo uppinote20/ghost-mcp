@@ -42,6 +42,8 @@ The setup wizard registers the server in your editor:
 └  Restart your editor to activate.
 ```
 
+> If you run `npm run setup`, you'll see a one-time prompt to star this repo. You can always skip it. Pass `--yes` to skip the prompt, or `--star` to star without asking.
+
 ## Manual Setup
 
 If you prefer to configure manually, add to your MCP settings:

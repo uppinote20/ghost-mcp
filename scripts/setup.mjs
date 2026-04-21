@@ -132,14 +132,16 @@ async function offerStar() {
   // on the next run when setup itself already succeeded.
   markStarPrompted();
 
-  const yes = check(
-    await confirm({
-      message:
-        `If ghost-mcp helped you, a GitHub star makes it discoverable to ` +
-        `other Claude Code users. Would you like me to star it now?`,
-      initialValue: false,
-    })
-  );
+  const yes = await confirm({
+    message:
+      `If ghost-mcp helped you, a GitHub star makes it discoverable to ` +
+      `other Claude Code users. Would you like me to star it now?`,
+    initialValue: false,
+  });
+
+  // Ctrl+C here = "no thanks, skip the star". Setup already succeeded, so
+  // don't use check()/bail() which would print "Setup cancelled."
+  if (isCancel(yes)) return;
 
   if (yes) tryStar();
 }

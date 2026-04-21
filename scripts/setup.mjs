@@ -99,18 +99,23 @@ function tryStar() {
   }
   if (!ghAuthed()) {
     log.info(
-      `\`gh\` not authenticated. Run \`gh auth login\` then:\n  gh repo star ${REPO}`
+      `\`gh\` not authenticated. Run \`gh auth login\` then star at:\n  ${REPO_URL}`
     );
     return;
   }
 
-  const r = spawnSync('gh', ['repo', 'star', REPO], { encoding: 'utf-8' });
+  // `gh repo star` subcommand does not exist. Use the REST API directly:
+  // PUT /user/starred/{owner}/{repo} — stderr is suppressed so gh's failure
+  // output does not leak into the setup UI.
+  const r = spawnSync(
+    'gh',
+    ['api', '--method', 'PUT', '--silent', `/user/starred/${REPO}`],
+    { stdio: ['ignore', 'ignore', 'ignore'] }
+  );
   if (r.status === 0) {
     log.success('★ Thanks!');
   } else {
-    log.info(
-      `(gh repo star failed — you can star manually at\n  ${REPO_URL})`
-    );
+    log.info(`(star failed — you can star manually at\n  ${REPO_URL})`);
   }
 }
 

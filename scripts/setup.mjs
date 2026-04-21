@@ -6,10 +6,14 @@
  *
  * Usage:
  *   npm run setup
+ *   npm run setup -- --yes    # non-interactive; skips star prompt
+ *   npm run setup -- --star   # star without prompting (dotfiles/CI opt-in)
+ *   npm run setup -- --force-star-prompt  # re-ask even if already prompted
  */
 
 import fs from 'fs';
 import path from 'path';
+import { spawnSync } from 'child_process';
 import {
   intro,
   outro,
@@ -24,9 +28,20 @@ import {
   log,
 } from '@clack/prompts';
 
+const REPO = 'uppinote20/ghost-mcp';
+const REPO_URL = `https://github.com/${REPO}`;
+
+// ── Flags ────────────────────────────────────────
+
+const ARGS = new Set(process.argv.slice(2));
+const FLAG_YES = ARGS.has('--yes');
+const FLAG_STAR = ARGS.has('--star');
+const FLAG_FORCE_STAR_PROMPT = ARGS.has('--force-star-prompt');
+
 // ── Editor config paths ─────────────────────────
 
 const HOME = process.env.HOME || '~';
+const STAR_MARKER = path.join(HOME, '.config', 'ghost-mcp', '.star-prompted');
 
 const EDITORS = {
   'claude-code': {
@@ -56,6 +71,84 @@ function bail(msg) {
 function check(value) {
   if (isCancel(value)) bail('Setup cancelled.');
   return value;
+}
+
+function ghAvailable() {
+  const r = spawnSync('gh', ['--version'], { stdio: 'ignore' });
+  return r.status === 0;
+}
+
+function ghAuthed() {
+  const r = spawnSync('gh', ['auth', 'status'], { stdio: 'ignore' });
+  return r.status === 0;
+}
+
+function markStarPrompted() {
+  try {
+    fs.mkdirSync(path.dirname(STAR_MARKER), { recursive: true });
+    fs.writeFileSync(STAR_MARKER, '');
+  } catch {
+    // best effort — marker is an optimization, not a correctness requirement
+  }
+}
+
+function tryStar() {
+  if (!ghAvailable()) {
+    log.info(`\`gh\` CLI not found. Star manually at:\n  ${REPO_URL}`);
+    return;
+  }
+  if (!ghAuthed()) {
+    log.info(
+      `\`gh\` not authenticated. Run \`gh auth login\` then star at:\n  ${REPO_URL}`
+    );
+    return;
+  }
+
+  // `gh repo star` subcommand does not exist. Use the REST API directly:
+  // PUT /user/starred/{owner}/{repo} — stderr is suppressed so gh's failure
+  // output does not leak into the setup UI.
+  const r = spawnSync(
+    'gh',
+    ['api', '--method', 'PUT', '--silent', `/user/starred/${REPO}`],
+    { stdio: ['ignore', 'ignore', 'ignore'] }
+  );
+  if (r.status === 0) {
+    log.success('★ Thanks!');
+  } else {
+    log.info(`(star failed — you can star manually at\n  ${REPO_URL})`);
+  }
+}
+
+async function offerStar() {
+  // --star: explicit opt-in, no prompt (dotfiles / CI consent)
+  if (FLAG_STAR) {
+    tryStar();
+    markStarPrompted();
+    return;
+  }
+
+  // --yes: non-interactive; star is always prompt-only, so skip
+  if (FLAG_YES) return;
+
+  // Already asked once; stay quiet unless user forces re-prompt
+  if (fs.existsSync(STAR_MARKER) && !FLAG_FORCE_STAR_PROMPT) return;
+
+  // Mark before prompting so Ctrl+C is treated as "No" — prevents re-asking
+  // on the next run when setup itself already succeeded.
+  markStarPrompted();
+
+  const yes = await confirm({
+    message:
+      `If ghost-mcp helped you, a GitHub star makes it discoverable to ` +
+      `other Claude Code users. Would you like me to star it now?`,
+    initialValue: false,
+  });
+
+  // Ctrl+C here = "no thanks, skip the star". Setup already succeeded, so
+  // don't use check()/bail() which would print "Setup cancelled."
+  if (isCancel(yes)) return;
+
+  if (yes) tryStar();
 }
 
 // ── Main ─────────────────────────────────────────
@@ -141,6 +234,7 @@ async function main() {
       JSON.stringify({ mcpServers: { 'ghost-blog': serverConfig } }, null, 2),
       'Add this to your MCP config'
     );
+    await offerStar();
     outro('Copy the config above to your editor settings.');
     return;
   }
@@ -185,6 +279,8 @@ async function main() {
     `Server: ${serverPath}\nGhost:  ${ghostUrl}`,
     'ghost-blog registered'
   );
+
+  await offerStar();
 
   outro(`Restart ${EDITORS[editor].label} to activate the MCP server.`);
 }

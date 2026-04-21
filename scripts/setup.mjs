@@ -109,7 +109,7 @@ function tryStar() {
     log.success('★ Thanks!');
   } else {
     log.info(
-      `(gh repo star failed — you can star manually at\n   ${REPO_URL})`
+      `(gh repo star failed — you can star manually at\n  ${REPO_URL})`
     );
   }
 }
@@ -128,6 +128,10 @@ async function offerStar() {
   // Already asked once; stay quiet unless user forces re-prompt
   if (fs.existsSync(STAR_MARKER) && !FLAG_FORCE_STAR_PROMPT) return;
 
+  // Mark before prompting so Ctrl+C is treated as "No" — prevents re-asking
+  // on the next run when setup itself already succeeded.
+  markStarPrompted();
+
   const yes = check(
     await confirm({
       message:
@@ -136,8 +140,6 @@ async function offerStar() {
       initialValue: false,
     })
   );
-
-  markStarPrompted();
 
   if (yes) tryStar();
 }

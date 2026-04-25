@@ -60,8 +60,14 @@ if (sched[0]) {
   await call('ghost_get_post', { slug: sched[0].slug }, `get_post (scheduled — no newsletter)`);
 }
 
-// 발송된 적 있는 published 포스트 찾기 — newsletter 객체 노출 확인
-const { posts: pubs } = await ghost.getPosts({ status: 'published', limit: 20 });
+// 발송된 적 있는 published 포스트 찾기 — newsletter 객체 노출 확인.
+// includeEmail: true 필수 — 그렇지 않으면 lazy-include로 두 필드가 응답에서
+// 빠져 find()가 항상 undefined를 반환.
+const { posts: pubs } = await ghost.getPosts({
+  status: 'published',
+  limit: 20,
+  includeEmail: true,
+});
 const sent = pubs.find((p) => p.email || p.newsletter);
 if (sent) {
   await call('ghost_get_post', { slug: sent.slug }, `get_post (published — newsletter sent)`);

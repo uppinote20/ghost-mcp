@@ -273,6 +273,20 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
       newsletter,
       email_segment,
     }) => {
+      const hasAnyField = [
+        title, markdown, lexical, tags, status, published_at,
+        meta_title, meta_description, custom_excerpt, feature_image,
+        slug, visibility, newsletter, email_segment,
+      ].some((v) => v !== undefined);
+      if (!hasAnyField) {
+        return {
+          content: [
+            { type: 'text' as const, text: 'No fields provided to update.' },
+          ],
+          isError: true,
+        };
+      }
+
       let current = await ghost.getPost(id);
       const isLexical = !!current.lexical;
 

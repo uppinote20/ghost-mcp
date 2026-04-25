@@ -44,8 +44,8 @@ async function call(name, args, label) {
   console.log(text);
 }
 
-// 1. list_posts default (scheduled) — 기본 표
-await call('ghost_list_posts', { status: 'scheduled', limit: 3 }, 'list_posts (status=scheduled, default)');
+// 1. list_posts base table — no status filter, show_email opt-out → 기본 6컬럼
+await call('ghost_list_posts', { limit: 3, show_email: false }, 'list_posts (base — no email columns)');
 
 // 2. list_posts with show_email auto-on (scheduled)
 //    → status가 scheduled이므로 Newsletter/Segment/Email 컬럼이 자동 활성

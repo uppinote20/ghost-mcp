@@ -528,6 +528,38 @@ describe('Page Tools — write/read alignment', () => {
       expect.objectContaining({ visibility: 'members' })
     );
   });
+
+  it('ghost_update_page strips post-only fields (newsletter, email_segment)', async () => {
+    vi.clearAllMocks();
+    await client.callTool({
+      name: 'ghost_update_page',
+      arguments: {
+        id: '507f1f77bcf86cd799439011',
+        title: 'Updated Page',
+        // Post-only fields — Zod schema should drop these silently.
+        newsletter: 'weekly',
+        email_segment: 'status:free',
+      } as Record<string, unknown>,
+    });
+    expect(ghost.updatePage).toHaveBeenCalledWith(
+      expect.not.objectContaining({ newsletter: expect.anything() })
+    );
+    expect(ghost.updatePage).toHaveBeenCalledWith(
+      expect.not.objectContaining({ email_segment: expect.anything() })
+    );
+  });
+
+  it('ghost_update_page returns error when no fields provided', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_page',
+      arguments: { id: '507f1f77bcf86cd799439011' },
+    });
+    expect(result.isError).toBe(true);
+    expect(ghost.updatePage).not.toHaveBeenCalled();
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('No fields provided');
+  });
 });
 
 // ── Sync Tools — tag clearing regression ─────────

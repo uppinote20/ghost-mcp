@@ -82,6 +82,7 @@ export function registerPageTools(server: McpServer, ghost: GhostAdminApi) {
         `| Status | ${page.status} |`,
         `| Published | ${page.published_at || 'N/A'} |`,
         `| Updated | ${page.updated_at} |`,
+        `| Created | ${page.created_at || 'N/A'} |`,
         `| Tags | ${tags} |`,
         `| Visibility | ${page.visibility || 'public'} |`,
         `| Feature image | ${page.feature_image || 'N/A'} |`,
@@ -154,6 +155,19 @@ export function registerPageTools(server: McpServer, ghost: GhostAdminApi) {
       meta_description,
       custom_excerpt,
     }) => {
+      const hasAnyField = [
+        title, lexical, mobiledoc, tags, status, slug, visibility,
+        feature_image, meta_title, meta_description, custom_excerpt,
+      ].some((v) => v !== undefined);
+      if (!hasAnyField) {
+        return {
+          content: [
+            { type: 'text' as const, text: 'No fields provided to update.' },
+          ],
+          isError: true,
+        };
+      }
+
       let current = await ghost.getPage(id);
 
       const otherFields: Omit<GhostPageUpdate, 'id' | 'updated_at'> = {

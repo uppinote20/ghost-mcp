@@ -12,6 +12,10 @@ npm test
 
 ## 구조
 
+- `src/cli.ts` - CLI entrypoint (args에 따라 `setup` | server 분기, npm bin)
+- `src/index.ts` - legacy server entry (v1.0.x/1.1.x 사용자 backward compat)
+- `src/setup.ts` - interactive setup wizard (Ghost URL/key 입력 → editor 등록 → npx 형태)
+- `src/server.ts` - MCP server 인스턴스화 + 도구 등록
 - `src/config.ts` - 환경변수 로딩 + HTTPS/API 키 검증
 - `src/validation.ts` - 입력값 검증 (ghostId, safeSlug, path traversal 방지)
 - `src/ghost/client.ts` - Ghost Admin API 클라이언트 (JWT 인증, 에러 정규화)
@@ -23,7 +27,14 @@ npm test
 ## 환경변수
 
 `GHOST_URL`, `GHOST_ADMIN_API_KEY` — MCP 클라이언트 설정의 `env` 필드로 전달.
-`npm run setup`으로 자동 등록 가능.
+사용자: `npx -y @uppinote/ghost-mcp@latest setup` 으로 자동 등록 (또는 dev clone 후 `npm run setup`).
+
+## 배포
+
+- npm: `@uppinote/ghost-mcp` (public, scoped). v1.2.0+
+- 사용자 등록 형식: `"command": "npx", "args": ["-y", "@uppinote/ghost-mcp@latest"]`
+- Tag push 시 `.github/workflows/release.yml`이 npm publish + GitHub Release publish 자동 처리
+- 필요 secret: `NPM_TOKEN` (Granular Access Token, scope `@uppinote`, Read & Write, 2FA bypass)
 
 ## 패키지 매니저
 

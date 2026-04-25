@@ -1,17 +1,19 @@
-#!/usr/bin/env node
-
 /**
  * Interactive setup for ghost-mcp.
- * Registers the MCP server in your editor's config.
+ * Registers the MCP server in your editor's config using `npx -y` invocation
+ * so the editor always picks up the latest published version.
  *
- * Usage:
- *   npm run setup
- *   npm run setup -- --yes    # non-interactive; skips star prompt
- *   npm run setup -- --star   # star without prompting (dotfiles/CI opt-in)
- *   npm run setup -- --force-star-prompt  # re-ask even if already prompted
+ * Invoked via:
+ *   npx -y @uppinote/ghost-mcp@latest setup
+ *   npm run setup            (dev: same code path, just a shorter alias)
+ *
+ * Flags:
+ *   --yes               non-interactive; skips star prompt
+ *   --star              star without prompting (dotfiles / CI consent)
+ *   --force-star-prompt re-ask even if already prompted
  */
-
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import {
@@ -30,6 +32,7 @@ import {
 
 const REPO = 'uppinote20/ghost-mcp';
 const REPO_URL = `https://github.com/${REPO}`;
+const NPM_PACKAGE = '@uppinote/ghost-mcp';
 
 // ── Flags ────────────────────────────────────────
 
@@ -40,10 +43,13 @@ const FLAG_FORCE_STAR_PROMPT = ARGS.has('--force-star-prompt');
 
 // ── Editor config paths ─────────────────────────
 
-const HOME = process.env.HOME || '~';
+const HOME = os.homedir();
 const STAR_MARKER = path.join(HOME, '.config', 'ghost-mcp', '.star-prompted');
 
-const EDITORS = {
+const EDITORS: Record<
+  string,
+  { label: string; path: string | null; key: string }
+> = {
   'claude-code': {
     label: 'Claude Code',
     path: path.join(HOME, '.claude', 'settings.json'),
@@ -63,27 +69,32 @@ const EDITORS = {
 
 // ── Helpers ──────────────────────────────────────
 
-function bail(msg) {
+function bail(msg: string): never {
   cancel(msg);
   process.exit(0);
 }
 
-function check(value) {
-  if (isCancel(value)) bail('Setup cancelled.');
-  return value;
+function bailError(msg: string): never {
+  cancel(msg);
+  process.exit(1);
 }
 
-function ghAvailable() {
+function check<T>(value: T | symbol): T {
+  if (isCancel(value)) bail('Setup cancelled.');
+  return value as T;
+}
+
+function ghAvailable(): boolean {
   const r = spawnSync('gh', ['--version'], { stdio: 'ignore' });
   return r.status === 0;
 }
 
-function ghAuthed() {
+function ghAuthed(): boolean {
   const r = spawnSync('gh', ['auth', 'status'], { stdio: 'ignore' });
   return r.status === 0;
 }
 
-function markStarPrompted() {
+function markStarPrompted(): void {
   try {
     fs.mkdirSync(path.dirname(STAR_MARKER), { recursive: true });
     fs.writeFileSync(STAR_MARKER, '');
@@ -92,7 +103,7 @@ function markStarPrompted() {
   }
 }
 
-function tryStar() {
+function tryStar(): void {
   if (!ghAvailable()) {
     log.info(`\`gh\` CLI not found. Star manually at:\n  ${REPO_URL}`);
     return;
@@ -105,8 +116,7 @@ function tryStar() {
   }
 
   // `gh repo star` subcommand does not exist. Use the REST API directly:
-  // PUT /user/starred/{owner}/{repo} — stderr is suppressed so gh's failure
-  // output does not leak into the setup UI.
+  // PUT /user/starred/{owner}/{repo}.
   const r = spawnSync(
     'gh',
     ['api', '--method', 'PUT', '--silent', `/user/starred/${REPO}`],
@@ -119,7 +129,7 @@ function tryStar() {
   }
 }
 
-async function offerStar() {
+async function offerStar(): Promise<void> {
   // --star: explicit opt-in, no prompt (dotfiles / CI consent)
   if (FLAG_STAR) {
     tryStar();
@@ -144,32 +154,16 @@ async function offerStar() {
     initialValue: false,
   });
 
-  // Ctrl+C here = "no thanks, skip the star". Setup already succeeded, so
-  // don't use check()/bail() which would print "Setup cancelled."
   if (isCancel(yes)) return;
-
   if (yes) tryStar();
 }
 
 // ── Main ─────────────────────────────────────────
 
-async function main() {
+export async function runSetup(): Promise<void> {
   intro('ghost-mcp setup');
 
-  // 1. Check build
-  const serverPath = path.resolve(
-    path.dirname(new URL(import.meta.url).pathname),
-    '..',
-    'dist',
-    'index.js'
-  );
-
-  if (!fs.existsSync(serverPath)) {
-    log.error(`Server not built. Run "npm run build" first.`);
-    bail('Build required');
-  }
-
-  // 2. Ghost URL
+  // 1. Ghost URL
   const ghostUrl = check(
     await text({
       message: 'Ghost blog URL',
@@ -178,17 +172,21 @@ async function main() {
         if (!v) return 'URL is required';
         try {
           const u = new URL(v);
-          if (u.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(u.hostname)) {
+          if (
+            u.protocol !== 'https:' &&
+            !['localhost', '127.0.0.1'].includes(u.hostname)
+          ) {
             return 'Must use HTTPS (except localhost)';
           }
         } catch {
           return 'Invalid URL';
         }
+        return undefined;
       },
     })
   );
 
-  // 3. Admin API Key
+  // 2. Admin API Key
   const apiKey = check(
     await password({
       message: 'Admin API Key (Ghost → Settings → Integrations)',
@@ -202,11 +200,12 @@ async function main() {
         if (!/^[a-f0-9]+$/.test(parts[1])) {
           return 'Secret must be hex-encoded';
         }
+        return undefined;
       },
     })
   );
 
-  // 4. Editor selection
+  // 3. Editor selection
   const editor = check(
     await select({
       message: 'Register in',
@@ -216,19 +215,20 @@ async function main() {
         { value: 'print', label: 'Print config (manual setup)' },
       ],
     })
-  );
+  ) as string;
 
-  // 5. Build MCP config
+  // 4. Build MCP config — uses `npx -y` so the editor always pulls the latest
+  //    published version on next start (npm cache TTL is ~24h).
   const serverConfig = {
-    command: 'node',
-    args: [serverPath],
+    command: 'npx',
+    args: ['-y', `${NPM_PACKAGE}@latest`],
     env: {
       GHOST_URL: ghostUrl.replace(/\/$/, ''),
       GHOST_ADMIN_API_KEY: apiKey,
     },
   };
 
-  // 6. Print or write
+  // 5. Print or write
   if (editor === 'print') {
     note(
       JSON.stringify({ mcpServers: { 'ghost-blog': serverConfig } }, null, 2),
@@ -240,21 +240,21 @@ async function main() {
   }
 
   const { path: settingsPath, key } = EDITORS[editor];
+  if (!settingsPath) bailError('Internal: editor has no settings path');
 
   // Read existing settings
-  let settings = {};
+  let settings: Record<string, Record<string, unknown>> = {};
   if (fs.existsSync(settingsPath)) {
     try {
       settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
     } catch {
       log.error(`Failed to parse ${settingsPath}`);
-      bail('Fix the file manually and retry');
+      bailError('Fix the file manually and retry');
     }
   }
 
   if (!settings[key]) settings[key] = {};
 
-  // Check for existing entry
   if (settings[key]['ghost-blog']) {
     const overwrite = check(
       await confirm({
@@ -265,7 +265,6 @@ async function main() {
     if (!overwrite) bail('Keeping existing config');
   }
 
-  // Write
   const s = spinner();
   s.start('Writing config');
 
@@ -276,7 +275,7 @@ async function main() {
   s.stop('Config saved');
 
   note(
-    `Server: ${serverPath}\nGhost:  ${ghostUrl}`,
+    `Package: ${NPM_PACKAGE}@latest (auto-updated by npx)\nGhost:   ${ghostUrl}`,
     'ghost-blog registered'
   );
 
@@ -284,8 +283,3 @@ async function main() {
 
   outro(`Restart ${EDITORS[editor].label} to activate the MCP server.`);
 }
-
-main().catch((err) => {
-  log.error(err.message);
-  process.exit(1);
-});

@@ -15,21 +15,6 @@ Create, edit, publish, and sync blog posts directly from Claude Code, Cursor, or
 
 ## Quick Start
 
-Pick whichever fits your workflow. Both end up running the same MCP server, so use one — not both.
-
-### Option A — Claude Code plugin (recommended)
-
-In a Claude Code session:
-
-```
-/plugin marketplace add uppinote20/ghost-mcp
-/plugin install ghost-mcp@ghost-mcp
-```
-
-Claude Code prompts for your Ghost URL and Admin API Key, stores the key in your system keychain, and enables the MCP server. Updates flow with the rest of your plugins — no manual `npm` step.
-
-### Option B — Setup wizard (works in any MCP-compatible editor)
-
 ```bash
 npx -y @uppinote/ghost-mcp@latest setup
 ```
@@ -87,12 +72,11 @@ If you prefer to configure manually, add to your MCP settings:
 
 ## Migrating from v1.0.x / v1.1.x
 
-Earlier versions registered the server with `node /path/to/dist/index.js`, which doesn't auto-update. Pick one of the new flows:
+Earlier versions registered the server with `node /path/to/dist/index.js`, which doesn't auto-update. To switch to the npx flow:
 
-- **Claude Code plugin**: `/plugin marketplace add uppinote20/ghost-mcp` → `/plugin install ghost-mcp@ghost-mcp`. Then remove the old `ghost-blog` entry from `~/.claude/settings.json` to avoid duplication.
-- **Setup wizard**: `npx -y @uppinote/ghost-mcp@latest setup` and choose "overwrite" when it detects the existing entry.
-
-Then restart your editor. The old `git clone` directory can be deleted afterward.
+1. Run `npx -y @uppinote/ghost-mcp@latest setup` and choose "overwrite" when it detects the existing entry.
+2. Restart your editor.
+3. (Optional) Delete the old `git clone` directory.
 
 ## Development (contributors)
 

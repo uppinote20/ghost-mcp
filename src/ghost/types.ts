@@ -1,3 +1,8 @@
+/**
+ * @handbook 4.1-post-page-separation
+ * @handbook 4.2-lazy-include-fields
+ */
+
 export interface GhostEmail {
   id: string;
   status: string;

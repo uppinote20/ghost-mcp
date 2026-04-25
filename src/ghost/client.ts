@@ -1,4 +1,9 @@
-/** @tested src/ghost/client.test.ts */
+/**
+ * @tested src/ghost/client.test.ts
+ * @handbook 3.1-jwt-token
+ * @handbook 3.2-error-normalization
+ * @handbook 3.3-lazy-include
+ */
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';

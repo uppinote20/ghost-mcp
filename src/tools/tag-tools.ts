@@ -1,4 +1,7 @@
-/** @tested src/tools/tools.test.ts */
+/**
+ * @tested src/tools/tools.test.ts
+ * @handbook 5.1-zod-schema-and-formatter
+ */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { GhostAdminApi } from '../ghost/client.js';

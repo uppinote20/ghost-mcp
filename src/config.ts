@@ -1,4 +1,7 @@
-/** @tested src/config.test.ts */
+/**
+ * @tested src/config.test.ts
+ * @handbook 2.3-config-validation
+ */
 export interface Config {
   ghostUrl: string;
   ghostAdminApiKey: string;

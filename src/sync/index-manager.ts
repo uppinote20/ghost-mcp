@@ -1,4 +1,7 @@
-/** @tested src/sync/index-manager.test.ts */
+/**
+ * @tested src/sync/index-manager.test.ts
+ * @handbook 7.2-sync-index
+ */
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';

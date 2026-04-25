@@ -1,4 +1,9 @@
-/** @tested src/tools/tools.test.ts */
+/**
+ * @tested src/tools/tools.test.ts
+ * @handbook 5.1-zod-schema-and-formatter
+ * @handbook 5.2-optimistic-locking-split
+ * @handbook 5.3-empty-input-guard
+ */
 import path from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';

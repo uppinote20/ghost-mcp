@@ -1,4 +1,8 @@
-/** @tested src/validation.test.ts */
+/**
+ * @tested src/validation.test.ts
+ * @handbook 6.1-id-slug-guards
+ * @handbook 6.2-path-traversal
+ */
 import path from 'path';
 import { z } from 'zod';
 

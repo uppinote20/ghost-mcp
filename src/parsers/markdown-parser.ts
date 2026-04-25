@@ -1,4 +1,7 @@
-/** @tested src/parsers/markdown-parser.test.ts */
+/**
+ * @tested src/parsers/markdown-parser.test.ts
+ * @handbook 7.1-markdown-format-detection
+ */
 export interface ParsedBlogPost {
   title: string;
   body: string;

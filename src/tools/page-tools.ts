@@ -1,4 +1,9 @@
-/** @tested src/tools/tools.test.ts */
+/**
+ * @tested src/tools/tools.test.ts
+ * @handbook 5.1-zod-schema-and-formatter
+ * @handbook 5.2-optimistic-locking-split
+ * @handbook 5.3-empty-input-guard
+ */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { GhostAdminApi } from '../ghost/client.js';
@@ -23,13 +28,14 @@ export function registerPageTools(server: McpServer, ghost: GhostAdminApi) {
         const tags = p.tags.map((t) => t.name).join(', ');
         const date =
           p.published_at?.slice(0, 10) || p.updated_at?.slice(0, 10) || '';
-        return `| ${p.status.padEnd(9)} | ${date} | ${p.title.slice(0, 50).padEnd(50)} | ${tags.slice(0, 30).padEnd(30)} | ${p.slug} |`;
+        const vis = (p.visibility || 'public').slice(0, 6).padEnd(6);
+        return `| ${p.status.padEnd(9)} | ${vis} | ${date} | ${p.title.slice(0, 50).padEnd(50)} | ${tags.slice(0, 30).padEnd(30)} | ${p.slug} |`;
       });
 
       const header =
-        '| Status    | Date       | Title                                              | Tags                           | Slug |';
+        '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug |';
       const sep =
-        '|-----------|------------|----------------------------------------------------|---------------------------------|------|';
+        '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|';
 
       const total = pagination?.total ?? pages.length;
       const summary = `Total: ${total} pages`;
@@ -81,7 +87,13 @@ export function registerPageTools(server: McpServer, ghost: GhostAdminApi) {
         `| Status | ${page.status} |`,
         `| Published | ${page.published_at || 'N/A'} |`,
         `| Updated | ${page.updated_at} |`,
+        `| Created | ${page.created_at || 'N/A'} |`,
         `| Tags | ${tags} |`,
+        `| Visibility | ${page.visibility || 'public'} |`,
+        `| Feature image | ${page.feature_image || 'N/A'} |`,
+        `| Meta title | ${page.meta_title || 'N/A'} |`,
+        `| Meta description | ${page.meta_description || 'N/A'} |`,
+        `| Excerpt | ${page.custom_excerpt || 'N/A'} |`,
       ];
 
       if (include_content) {
@@ -122,23 +134,80 @@ export function registerPageTools(server: McpServer, ghost: GhostAdminApi) {
         .optional()
         .describe('New status'),
       slug: z.string().optional().describe('New slug'),
+      visibility: z
+        .enum(['public', 'members', 'paid', 'tiers'])
+        .optional()
+        .describe('Page visibility'),
+      feature_image: z.string().optional().describe('Feature image URL'),
+      meta_title: z.string().optional().describe('SEO meta title'),
+      meta_description: z
+        .string()
+        .optional()
+        .describe('SEO meta description'),
+      custom_excerpt: z.string().optional().describe('Custom excerpt'),
     },
-    async ({ id, title, lexical, mobiledoc, tags, status, slug }) => {
-      const current = await ghost.getPage(id);
+    async ({
+      id,
+      title,
+      lexical,
+      mobiledoc,
+      tags,
+      status,
+      slug,
+      visibility,
+      feature_image,
+      meta_title,
+      meta_description,
+      custom_excerpt,
+    }) => {
+      const hasAnyField = [
+        title, lexical, mobiledoc, tags, status, slug, visibility,
+        feature_image, meta_title, meta_description, custom_excerpt,
+      ].some((v) => v !== undefined);
+      if (!hasAnyField) {
+        return {
+          content: [
+            { type: 'text' as const, text: 'No fields provided to update.' },
+          ],
+          isError: true,
+        };
+      }
 
-      const update: GhostPageUpdate = {
-        id,
-        updated_at: current.updated_at,
+      let current = await ghost.getPage(id);
+
+      const otherFields: Omit<GhostPageUpdate, 'id' | 'updated_at'> = {
         ...(title !== undefined && { title }),
         ...(slug !== undefined && { slug }),
         ...(status !== undefined && { status }),
         ...(tags !== undefined && { tags: tags.map((name) => ({ name })) }),
         ...(lexical !== undefined && { lexical }),
         ...(mobiledoc !== undefined && { mobiledoc }),
+        ...(feature_image !== undefined && { feature_image }),
+        ...(meta_title !== undefined && { meta_title }),
+        ...(meta_description !== undefined && { meta_description }),
+        ...(custom_excerpt !== undefined && { custom_excerpt }),
       };
 
-      const page = await ghost.updatePage(update);
-      audit('update_page', { id, title: page.title });
+      const fields = Object.keys(otherFields);
+      if (fields.length > 0) {
+        current = await ghost.updatePage({
+          id,
+          updated_at: current.updated_at,
+          ...otherFields,
+        });
+      }
+
+      let page = current;
+      if (visibility !== undefined) {
+        page = await ghost.updatePage({
+          id,
+          updated_at: current.updated_at,
+          visibility,
+        });
+        fields.push('visibility');
+      }
+
+      audit('update_page', { id, fields });
 
       return {
         content: [

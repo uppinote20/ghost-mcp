@@ -1,3 +1,4 @@
+/** @handbook 2.2-server-instructions */
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';

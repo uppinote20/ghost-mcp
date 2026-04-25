@@ -1,3 +1,19 @@
+/**
+ * @handbook 4.1-post-page-separation
+ * @handbook 4.2-lazy-include-fields
+ */
+
+export interface GhostEmail {
+  id: string;
+  status: string;
+  recipient_filter: string | null;
+  email_count?: number;
+  delivered_count?: number;
+  failed_count?: number;
+  submitted_at?: string | null;
+  error?: string | null;
+}
+
 export interface GhostPost {
   id: string;
   uuid: string;
@@ -18,6 +34,9 @@ export interface GhostPost {
   plaintext: string | null;
   mobiledoc: string | null;
   lexical: string | null;
+  email?: GhostEmail | null;
+  newsletter?: { id: string; name?: string; slug: string } | null;
+  email_segment?: string;
 }
 
 export interface GhostTag {
@@ -59,8 +78,44 @@ export interface GhostPostUpdate {
   tags?: { name: string }[];
 }
 
-export type GhostPage = GhostPost;
-export type GhostPageUpdate = GhostPostUpdate;
+export interface GhostPage {
+  id: string;
+  uuid: string;
+  title: string;
+  slug: string;
+  status: 'draft' | 'published' | 'scheduled';
+  published_at: string | null;
+  updated_at: string;
+  created_at: string;
+  excerpt: string | null;
+  custom_excerpt: string | null;
+  feature_image: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  visibility: 'public' | 'members' | 'paid' | 'tiers';
+  tags: GhostTag[];
+  html: string | null;
+  plaintext: string | null;
+  mobiledoc: string | null;
+  lexical: string | null;
+}
+
+export interface GhostPageUpdate {
+  id: string;
+  updated_at: string;
+  title?: string;
+  mobiledoc?: string;
+  lexical?: string;
+  slug?: string;
+  status?: 'draft' | 'published' | 'scheduled';
+  visibility?: 'public' | 'members' | 'paid' | 'tiers';
+  published_at?: string;
+  custom_excerpt?: string;
+  feature_image?: string;
+  meta_title?: string;
+  meta_description?: string;
+  tags?: { name: string }[];
+}
 
 export interface GhostNewsletter {
   id: string;

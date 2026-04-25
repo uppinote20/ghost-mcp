@@ -1,4 +1,9 @@
-/** @tested src/ghost/client.test.ts */
+/**
+ * @tested src/ghost/client.test.ts
+ * @handbook 3.1-jwt-token
+ * @handbook 3.2-error-normalization
+ * @handbook 3.3-lazy-include
+ */
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -98,6 +103,7 @@ export class GhostAdminApi {
     search?: string;
     limit?: number;
     page?: number;
+    includeEmail?: boolean;
   } = {}): Promise<{ posts: GhostPost[]; pagination?: GhostPagination }> {
     const params = new URLSearchParams();
 
@@ -109,7 +115,7 @@ export class GhostAdminApi {
     if (options.search) params.set('search', options.search);
     params.set('limit', String(options.limit || 50));
     if (options.page) params.set('page', String(options.page));
-    params.set('include', 'tags');
+    params.set('include', options.includeEmail ? 'tags,email,newsletter' : 'tags');
     params.set('order', 'updated_at desc');
 
     const response = await this.request<GhostApiResponse<GhostPost>>(
@@ -122,16 +128,18 @@ export class GhostAdminApi {
     };
   }
 
-  async getPost(id: string): Promise<GhostPost> {
+  async getPost(id: string, options: { includeEmail?: boolean } = {}): Promise<GhostPost> {
+    const include = options.includeEmail ? 'tags,email,newsletter' : 'tags';
     const response = await this.request<{ posts: GhostPost[] }>(
-      `posts/${id}/?formats=mobiledoc,lexical,html,plaintext&include=tags`
+      `posts/${id}/?formats=mobiledoc,lexical,html,plaintext&include=${include}`
     );
     return response.posts[0];
   }
 
-  async getPostBySlug(slug: string): Promise<GhostPost> {
+  async getPostBySlug(slug: string, options: { includeEmail?: boolean } = {}): Promise<GhostPost> {
+    const include = options.includeEmail ? 'tags,email,newsletter' : 'tags';
     const response = await this.request<{ posts: GhostPost[] }>(
-      `posts/slug/${slug}/?formats=mobiledoc,lexical,html,plaintext&include=tags`
+      `posts/slug/${slug}/?formats=mobiledoc,lexical,html,plaintext&include=${include}`
     );
     return response.posts[0];
   }

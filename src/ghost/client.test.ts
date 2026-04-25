@@ -20,6 +20,69 @@ describe('GhostAdminApi', () => {
     vi.restoreAllMocks();
   });
 
+  // ── Lazy-include fields ──
+
+  describe('include=email,newsletter on read paths (opt-in)', () => {
+    function stubFetchOk() {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ posts: [{}] }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      return fetchMock;
+    }
+
+    it('getPost defaults to include=tags only (cold callers stay cheap)', async () => {
+      const fetchMock = stubFetchOk();
+      await api.getPost('507f1f77bcf86cd799439011');
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain('include=tags');
+      expect(url).not.toContain('email');
+      expect(url).not.toContain('newsletter');
+    });
+
+    it('getPost includes email,newsletter when includeEmail=true', async () => {
+      const fetchMock = stubFetchOk();
+      await api.getPost('507f1f77bcf86cd799439011', { includeEmail: true });
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain('include=tags,email,newsletter');
+    });
+
+    it('getPostBySlug includes email,newsletter when includeEmail=true', async () => {
+      const fetchMock = stubFetchOk();
+      await api.getPostBySlug('hello-world', { includeEmail: true });
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain('include=tags,email,newsletter');
+    });
+
+    it('getPosts includes email,newsletter when includeEmail=true (URLSearchParams-encoded)', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ posts: [], meta: {} }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      await api.getPosts({ includeEmail: true });
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain('include=tags%2Cemail%2Cnewsletter');
+    });
+
+    it('getPosts defaults to include=tags only', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ posts: [], meta: {} }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      await api.getPosts();
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain('include=tags');
+      expect(url).not.toContain('email');
+      expect(url).not.toContain('newsletter');
+    });
+  });
+
   // ── Error normalization ──
 
   describe('request error normalization', () => {

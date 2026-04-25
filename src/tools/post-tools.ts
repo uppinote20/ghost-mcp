@@ -1,4 +1,9 @@
-/** @tested src/tools/tools.test.ts */
+/**
+ * @tested src/tools/tools.test.ts
+ * @handbook 5.1-zod-schema-and-formatter
+ * @handbook 5.2-optimistic-locking-split
+ * @handbook 5.3-empty-input-guard
+ */
 import path from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
@@ -22,13 +27,23 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
       tag: z.string().optional().describe('Filter by tag slug'),
       search: z.string().optional().describe('Search in title and content'),
       limit: z.number().optional().describe('Max posts to return (default 50)'),
+      show_email: z
+        .boolean()
+        .optional()
+        .describe(
+          'Append Newsletter / Filter / Email columns. Auto-enabled when status is "scheduled" or "sent". Useful for verifying which scheduled posts will trigger an email on publish.'
+        ),
     },
-    async ({ status, tag, search, limit }) => {
+    async ({ status, tag, search, limit, show_email }) => {
+      const showEmail =
+        show_email ?? (status === 'scheduled' || status === 'sent');
+
       const { posts, pagination } = await ghost.getPosts({
         status,
         tag,
         search,
         limit,
+        includeEmail: showEmail,
       });
 
       const rows = posts.map((p) => {
@@ -36,13 +51,20 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         const date =
           p.published_at?.slice(0, 10) || p.updated_at?.slice(0, 10) || '';
         const vis = (p.visibility || 'public').slice(0, 6).padEnd(6);
-        return `| ${p.status.padEnd(9)} | ${vis} | ${date} | ${p.title.slice(0, 50).padEnd(50)} | ${tags.slice(0, 30).padEnd(30)} | ${p.slug} |`;
+        const base = `| ${p.status.padEnd(9)} | ${vis} | ${date} | ${p.title.slice(0, 50).padEnd(50)} | ${tags.slice(0, 30).padEnd(30)} | ${p.slug} |`;
+        if (!showEmail) return base;
+        const news = (p.newsletter?.slug || '-').slice(0, 18).padEnd(18);
+        const segment = (p.email_segment ?? '-').slice(0, 14).padEnd(14);
+        const emailStatus = (p.email?.status || '-').slice(0, 10).padEnd(10);
+        return `${base} ${news} | ${segment} | ${emailStatus} |`;
       });
 
-      const header =
-        '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug |';
-      const sep =
-        '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|';
+      const header = showEmail
+        ? '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug | Newsletter         | Segment        | Email      |'
+        : '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug |';
+      const sep = showEmail
+        ? '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|--------------------|----------------|------------|'
+        : '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|';
 
       const total = pagination?.total ?? posts.length;
       const summary = `Total: ${total} posts`;
@@ -80,8 +102,8 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
       }
 
       const post = id
-        ? await ghost.getPost(id)
-        : await ghost.getPostBySlug(slug!);
+        ? await ghost.getPost(id, { includeEmail: true })
+        : await ghost.getPostBySlug(slug!, { includeEmail: true });
 
       const tags = post.tags.map((t) => t.name).join(', ');
       const lines = [
@@ -94,11 +116,17 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         `| Status | ${post.status} |`,
         `| Published | ${post.published_at || 'N/A'} |`,
         `| Updated | ${post.updated_at} |`,
+        `| Created | ${post.created_at || 'N/A'} |`,
         `| Tags | ${tags} |`,
         `| Visibility | ${post.visibility || 'public'} |`,
+        `| Feature image | ${post.feature_image || 'N/A'} |`,
         `| Meta title | ${post.meta_title || 'N/A'} |`,
         `| Meta description | ${post.meta_description || 'N/A'} |`,
         `| Excerpt | ${post.custom_excerpt || 'N/A'} |`,
+        `| Newsletter | ${post.newsletter?.slug || '(none)'} |`,
+        `| Email segment | ${post.email_segment ?? 'all'} |`,
+        `| Email status | ${post.email?.status || 'not sent'} |`,
+        `| Email recipient filter | ${post.email?.recipient_filter ?? 'N/A'} |`,
       ];
 
       if (include_content) {
@@ -250,13 +278,34 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
       newsletter,
       email_segment,
     }) => {
-      // Fetch current post for optimistic locking
-      let current = await ghost.getPost(id);
+      const hasAnyField = [
+        title, markdown, lexical, tags, status, published_at,
+        meta_title, meta_description, custom_excerpt, feature_image,
+        slug, visibility, newsletter, email_segment,
+      ].some((v) => v !== undefined);
+      if (!hasAnyField) {
+        return {
+          content: [
+            { type: 'text' as const, text: 'No fields provided to update.' },
+          ],
+          isError: true,
+        };
+      }
+      if (email_segment && !newsletter) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'email_segment requires newsletter to be set (segment is the recipient filter for a newsletter send).',
+            },
+          ],
+          isError: true,
+        };
+      }
 
-      // Detect editor format: lexical posts need lexical, mobiledoc posts need mobiledoc
+      let current = await ghost.getPost(id);
       const isLexical = !!current.lexical;
 
-      // Convert markdown to the correct editor format
       let contentField: Record<string, string> = {};
       if (markdown !== undefined) {
         contentField = isLexical
@@ -264,8 +313,8 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
           : { mobiledoc: toMobiledoc(markdown) };
       }
 
-      // Separate visibility from other fields — Ghost API ignores visibility
-      // when sent alongside other fields in certain cases.
+      // Ghost ignores visibility when sent alongside other fields, so we split
+      // the update into a content PUT and a visibility-only PUT.
       const otherFields: Omit<GhostPostUpdate, 'id' | 'updated_at'> = {
         ...(title !== undefined && { title }),
         ...(slug !== undefined && { slug }),
@@ -280,22 +329,19 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         ...contentField,
       };
 
-      // Newsletter options — only passed when status changes to published
       const newsletterOpts = newsletter
         ? { newsletter, email_segment: email_segment || 'all' }
         : undefined;
 
-      // Step 1: Update non-visibility fields
-      if (Object.keys(otherFields).length > 0) {
+      const fields = Object.keys(otherFields);
+      if (fields.length > 0 || newsletterOpts) {
         current = await ghost.updatePost(
           { id, updated_at: current.updated_at, ...otherFields },
           newsletterOpts
         );
+        if (newsletterOpts) fields.push('newsletter');
       }
 
-      audit('update_post', { id, fields: Object.keys(otherFields) });
-
-      // Step 2: Update visibility separately
       let post: GhostPost;
       if (visibility !== undefined) {
         post = await ghost.updatePost({
@@ -303,9 +349,12 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
           updated_at: current.updated_at,
           visibility,
         });
+        fields.push('visibility');
       } else {
         post = current;
       }
+
+      audit('update_post', { id, fields });
 
       return {
         content: [

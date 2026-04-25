@@ -1,4 +1,8 @@
-/** @tested src/tools/tools.test.ts */
+/**
+ * @tested src/tools/tools.test.ts
+ * @handbook 5.1-zod-schema-and-formatter
+ * @handbook 7.3-lexical-vs-mobiledoc
+ */
 import fs from 'fs/promises';
 import path from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

@@ -48,7 +48,7 @@ function createMockGhost(overrides: Partial<{
     lexical: '{"root":{"children":[]}}',
     email: overrides.email ?? null,
     newsletter: overrides.newsletter ?? null,
-    email_segment: overrides.email_segment,
+    email_segment: overrides.email_segment ?? 'all',
   };
 
   const mockTag = {
@@ -385,19 +385,20 @@ describe('Post Tools — email/newsletter read surface', () => {
     await client.close();
   });
 
-  it('ghost_get_post surfaces newsletter slug, recipient filter, email status', async () => {
+  it('ghost_get_post surfaces newsletter slug, segment, email status, recipient filter', async () => {
     const result = await client.callTool({
       name: 'ghost_get_post',
       arguments: { id: '507f1f77bcf86cd799439011' },
     });
     const text = (result.content as { type: string; text: string }[])[0].text;
     expect(text).toContain('| Newsletter | weekly |');
-    expect(text).toContain('| Email recipient filter | status:-free |');
+    expect(text).toContain('| Email segment | status:-free |');
     expect(text).toContain('| Email status | submitted |');
+    expect(text).toContain('| Email recipient filter | status:-free |');
     expect(text).toContain('| Created |');
   });
 
-  it('ghost_get_post shows (none) when no newsletter attached', async () => {
+  it('ghost_get_post shows (none)/not sent for unset newsletter', async () => {
     const ghost = createMockGhost();
     const { client: c } = await setupMcpClient(ghost);
     const result = await c.callTool({
@@ -406,7 +407,9 @@ describe('Post Tools — email/newsletter read surface', () => {
     });
     const text = (result.content as { type: string; text: string }[])[0].text;
     expect(text).toContain('| Newsletter | (none) |');
-    expect(text).toContain('| Email recipient filter | (none) |');
+    expect(text).toContain('| Email segment | all |');
+    expect(text).toContain('| Email status | not sent |');
+    expect(text).toContain('| Email recipient filter | N/A |');
     await c.close();
   });
 
@@ -417,7 +420,7 @@ describe('Post Tools — email/newsletter read surface', () => {
     });
     const text = (result.content as { type: string; text: string }[])[0].text;
     expect(text).toContain('Newsletter');
-    expect(text).toContain('Filter');
+    expect(text).toContain('Segment');
     expect(text).toMatch(/\| Email\s+\|/);
     expect(text).toContain('weekly');
   });
@@ -431,7 +434,7 @@ describe('Post Tools — email/newsletter read surface', () => {
     });
     const text = (result.content as { type: string; text: string }[])[0].text;
     expect(text).not.toContain('Newsletter');
-    expect(text).not.toContain('Filter');
+    expect(text).not.toContain('Segment');
     await c.close();
   });
 

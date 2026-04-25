@@ -48,19 +48,13 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         const base = `| ${p.status.padEnd(9)} | ${vis} | ${date} | ${p.title.slice(0, 50).padEnd(50)} | ${tags.slice(0, 30).padEnd(30)} | ${p.slug} |`;
         if (!showEmail) return base;
         const news = (p.newsletter?.slug || '-').slice(0, 18).padEnd(18);
-        const filter = (
-          p.email?.recipient_filter ??
-          p.email_segment ??
-          '-'
-        )
-          .slice(0, 14)
-          .padEnd(14);
+        const segment = (p.email_segment ?? '-').slice(0, 14).padEnd(14);
         const emailStatus = (p.email?.status || '-').slice(0, 10).padEnd(10);
-        return `${base} ${news} | ${filter} | ${emailStatus} |`;
+        return `${base} ${news} | ${segment} | ${emailStatus} |`;
       });
 
       const header = showEmail
-        ? '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug | Newsletter         | Filter         | Email      |'
+        ? '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug | Newsletter         | Segment        | Email      |'
         : '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug |';
       const sep = showEmail
         ? '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|--------------------|----------------|------------|'
@@ -124,8 +118,9 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         `| Meta description | ${post.meta_description || 'N/A'} |`,
         `| Excerpt | ${post.custom_excerpt || 'N/A'} |`,
         `| Newsletter | ${post.newsletter?.slug || '(none)'} |`,
-        `| Email recipient filter | ${post.email?.recipient_filter ?? post.email_segment ?? '(none)'} |`,
-        `| Email status | ${post.email?.status || 'N/A'} |`,
+        `| Email segment | ${post.email_segment ?? 'all'} |`,
+        `| Email status | ${post.email?.status || 'not sent'} |`,
+        `| Email recipient filter | ${post.email?.recipient_filter ?? 'N/A'} |`,
       ];
 
       if (include_content) {

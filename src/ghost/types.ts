@@ -30,7 +30,7 @@ export interface GhostPost {
   mobiledoc: string | null;
   lexical: string | null;
   email?: GhostEmail | null;
-  newsletter?: { id: string; name: string; slug: string } | null;
+  newsletter?: { id: string; name?: string; slug: string } | null;
   email_segment?: string;
 }
 

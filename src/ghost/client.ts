@@ -109,7 +109,7 @@ export class GhostAdminApi {
     if (options.search) params.set('search', options.search);
     params.set('limit', String(options.limit || 50));
     if (options.page) params.set('page', String(options.page));
-    params.set('include', 'tags');
+    params.set('include', 'tags,email,newsletter');
     params.set('order', 'updated_at desc');
 
     const response = await this.request<GhostApiResponse<GhostPost>>(
@@ -124,14 +124,14 @@ export class GhostAdminApi {
 
   async getPost(id: string): Promise<GhostPost> {
     const response = await this.request<{ posts: GhostPost[] }>(
-      `posts/${id}/?formats=mobiledoc,lexical,html,plaintext&include=tags`
+      `posts/${id}/?formats=mobiledoc,lexical,html,plaintext&include=tags,email,newsletter`
     );
     return response.posts[0];
   }
 
   async getPostBySlug(slug: string): Promise<GhostPost> {
     const response = await this.request<{ posts: GhostPost[] }>(
-      `posts/slug/${slug}/?formats=mobiledoc,lexical,html,plaintext&include=tags`
+      `posts/slug/${slug}/?formats=mobiledoc,lexical,html,plaintext&include=tags,email,newsletter`
     );
     return response.posts[0];
   }

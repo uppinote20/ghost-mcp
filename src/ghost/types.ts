@@ -1,3 +1,14 @@
+export interface GhostEmail {
+  id: string;
+  status: string;
+  recipient_filter: string | null;
+  email_count?: number;
+  delivered_count?: number;
+  failed_count?: number;
+  submitted_at?: string | null;
+  error?: string | null;
+}
+
 export interface GhostPost {
   id: string;
   uuid: string;
@@ -18,6 +29,9 @@ export interface GhostPost {
   plaintext: string | null;
   mobiledoc: string | null;
   lexical: string | null;
+  email?: GhostEmail | null;
+  newsletter?: { id: string; name: string; slug: string } | null;
+  email_segment?: string;
 }
 
 export interface GhostTag {

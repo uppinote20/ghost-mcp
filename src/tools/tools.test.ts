@@ -20,13 +20,18 @@ import { registerSyncTools } from './sync-tools.js';
 
 // ── Mock Ghost API ──────────────────────────────
 
-function createMockGhost(): GhostAdminApi {
+function createMockGhost(overrides: Partial<{
+  email: { id: string; status: string; recipient_filter: string | null } | null;
+  newsletter: { id: string; name: string; slug: string } | null;
+  email_segment: string;
+  status: 'draft' | 'published' | 'scheduled' | 'sent';
+}> = {}): GhostAdminApi {
   const mockPost = {
     id: '507f1f77bcf86cd799439011',
     uuid: 'test-uuid',
     title: 'Test Post',
     slug: 'test-post',
-    status: 'draft' as const,
+    status: (overrides.status ?? 'draft') as 'draft' | 'published' | 'scheduled' | 'sent',
     published_at: null,
     updated_at: '2026-01-01T00:00:00.000Z',
     created_at: '2026-01-01T00:00:00.000Z',
@@ -41,6 +46,9 @@ function createMockGhost(): GhostAdminApi {
     plaintext: 'Test',
     mobiledoc: null,
     lexical: '{"root":{"children":[]}}',
+    email: overrides.email ?? null,
+    newsletter: overrides.newsletter ?? null,
+    email_segment: overrides.email_segment,
   };
 
   const mockTag = {
@@ -351,6 +359,169 @@ describe('Sync Tools (MCP integration)', () => {
     });
     const text = (result.content as { type: string; text: string }[])[0].text;
     expect(text).toContain('Sync Status');
+  });
+});
+
+// ── Post Tools — email/newsletter surface ────────
+
+describe('Post Tools — email/newsletter read surface', () => {
+  let client: Client;
+
+  beforeAll(async () => {
+    const ghost = createMockGhost({
+      email: {
+        id: 'email-id',
+        status: 'submitted',
+        recipient_filter: 'status:-free',
+      },
+      newsletter: { id: 'nl-id', name: 'Weekly', slug: 'weekly' },
+      email_segment: 'status:-free',
+      status: 'scheduled',
+    });
+    ({ client } = await setupMcpClient(ghost));
+  });
+
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it('ghost_get_post surfaces newsletter slug, recipient filter, email status', async () => {
+    const result = await client.callTool({
+      name: 'ghost_get_post',
+      arguments: { id: '507f1f77bcf86cd799439011' },
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('| Newsletter | weekly |');
+    expect(text).toContain('| Email recipient filter | status:-free |');
+    expect(text).toContain('| Email status | submitted |');
+    expect(text).toContain('| Created |');
+  });
+
+  it('ghost_get_post shows (none) when no newsletter attached', async () => {
+    const ghost = createMockGhost();
+    const { client: c } = await setupMcpClient(ghost);
+    const result = await c.callTool({
+      name: 'ghost_get_post',
+      arguments: { id: '507f1f77bcf86cd799439011' },
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('| Newsletter | (none) |');
+    expect(text).toContain('| Email recipient filter | (none) |');
+    await c.close();
+  });
+
+  it('ghost_list_posts auto-shows email columns when status=scheduled', async () => {
+    const result = await client.callTool({
+      name: 'ghost_list_posts',
+      arguments: { status: 'scheduled' },
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('Newsletter');
+    expect(text).toContain('Filter');
+    expect(text).toMatch(/\| Email\s+\|/);
+    expect(text).toContain('weekly');
+  });
+
+  it('ghost_list_posts hides email columns by default (no status filter)', async () => {
+    const ghost = createMockGhost();
+    const { client: c } = await setupMcpClient(ghost);
+    const result = await c.callTool({
+      name: 'ghost_list_posts',
+      arguments: {},
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).not.toContain('Newsletter');
+    expect(text).not.toContain('Filter');
+    await c.close();
+  });
+
+  it('ghost_list_posts respects explicit show_email=true', async () => {
+    const ghost = createMockGhost({
+      newsletter: { id: 'n', name: 'W', slug: 'weekly' },
+    });
+    const { client: c } = await setupMcpClient(ghost);
+    const result = await c.callTool({
+      name: 'ghost_list_posts',
+      arguments: { show_email: true },
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('Newsletter');
+    expect(text).toContain('weekly');
+    await c.close();
+  });
+});
+
+// ── Page Tools — write/read alignment ────────────
+
+describe('Page Tools — write/read alignment', () => {
+  let client: Client;
+  let ghost: GhostAdminApi;
+
+  beforeAll(async () => {
+    ghost = createMockGhost();
+    ({ client } = await setupMcpClient(ghost));
+  });
+
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it('ghost_get_page surfaces visibility, feature_image, meta fields, excerpt', async () => {
+    const result = await client.callTool({
+      name: 'ghost_get_page',
+      arguments: { slug: 'about' },
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('| Visibility |');
+    expect(text).toContain('| Feature image |');
+    expect(text).toContain('| Meta title |');
+    expect(text).toContain('| Meta description |');
+    expect(text).toContain('| Excerpt |');
+  });
+
+  it('ghost_list_pages includes Vis column', async () => {
+    const result = await client.callTool({
+      name: 'ghost_list_pages',
+      arguments: {},
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('Vis');
+  });
+
+  it('ghost_update_page accepts and forwards meta/feature_image/excerpt', async () => {
+    vi.clearAllMocks();
+    await client.callTool({
+      name: 'ghost_update_page',
+      arguments: {
+        id: '507f1f77bcf86cd799439011',
+        meta_title: 'SEO Title',
+        meta_description: 'SEO Desc',
+        feature_image: 'https://cdn.example.com/img.png',
+        custom_excerpt: 'Short excerpt',
+      },
+    });
+    expect(ghost.updatePage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meta_title: 'SEO Title',
+        meta_description: 'SEO Desc',
+        feature_image: 'https://cdn.example.com/img.png',
+        custom_excerpt: 'Short excerpt',
+      })
+    );
+  });
+
+  it('ghost_update_page accepts and forwards visibility (in second call)', async () => {
+    vi.clearAllMocks();
+    await client.callTool({
+      name: 'ghost_update_page',
+      arguments: {
+        id: '507f1f77bcf86cd799439011',
+        visibility: 'members',
+      },
+    });
+    expect(ghost.updatePage).toHaveBeenCalledWith(
+      expect.objectContaining({ visibility: 'members' })
+    );
   });
 });
 

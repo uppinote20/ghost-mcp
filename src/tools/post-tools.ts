@@ -22,8 +22,14 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
       tag: z.string().optional().describe('Filter by tag slug'),
       search: z.string().optional().describe('Search in title and content'),
       limit: z.number().optional().describe('Max posts to return (default 50)'),
+      show_email: z
+        .boolean()
+        .optional()
+        .describe(
+          'Append Newsletter / Filter / Email columns. Auto-enabled when status is "scheduled" or "sent". Useful for verifying which scheduled posts will trigger an email on publish.'
+        ),
     },
-    async ({ status, tag, search, limit }) => {
+    async ({ status, tag, search, limit, show_email }) => {
       const { posts, pagination } = await ghost.getPosts({
         status,
         tag,
@@ -31,18 +37,34 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         limit,
       });
 
+      const showEmail =
+        show_email ?? (status === 'scheduled' || status === 'sent');
+
       const rows = posts.map((p) => {
         const tags = p.tags.map((t) => t.name).join(', ');
         const date =
           p.published_at?.slice(0, 10) || p.updated_at?.slice(0, 10) || '';
         const vis = (p.visibility || 'public').slice(0, 6).padEnd(6);
-        return `| ${p.status.padEnd(9)} | ${vis} | ${date} | ${p.title.slice(0, 50).padEnd(50)} | ${tags.slice(0, 30).padEnd(30)} | ${p.slug} |`;
+        const base = `| ${p.status.padEnd(9)} | ${vis} | ${date} | ${p.title.slice(0, 50).padEnd(50)} | ${tags.slice(0, 30).padEnd(30)} | ${p.slug} |`;
+        if (!showEmail) return base;
+        const news = (p.newsletter?.slug || '-').slice(0, 18).padEnd(18);
+        const filter = (
+          p.email?.recipient_filter ??
+          p.email_segment ??
+          '-'
+        )
+          .slice(0, 14)
+          .padEnd(14);
+        const emailStatus = (p.email?.status || '-').slice(0, 10).padEnd(10);
+        return `${base} ${news} | ${filter} | ${emailStatus} |`;
       });
 
-      const header =
-        '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug |';
-      const sep =
-        '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|';
+      const header = showEmail
+        ? '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug | Newsletter         | Filter         | Email      |'
+        : '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug |';
+      const sep = showEmail
+        ? '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|--------------------|----------------|------------|'
+        : '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|';
 
       const total = pagination?.total ?? posts.length;
       const summary = `Total: ${total} posts`;
@@ -94,11 +116,16 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         `| Status | ${post.status} |`,
         `| Published | ${post.published_at || 'N/A'} |`,
         `| Updated | ${post.updated_at} |`,
+        `| Created | ${post.created_at || 'N/A'} |`,
         `| Tags | ${tags} |`,
         `| Visibility | ${post.visibility || 'public'} |`,
+        `| Feature image | ${post.feature_image || 'N/A'} |`,
         `| Meta title | ${post.meta_title || 'N/A'} |`,
         `| Meta description | ${post.meta_description || 'N/A'} |`,
         `| Excerpt | ${post.custom_excerpt || 'N/A'} |`,
+        `| Newsletter | ${post.newsletter?.slug || '(none)'} |`,
+        `| Email recipient filter | ${post.email?.recipient_filter ?? post.email_segment ?? '(none)'} |`,
+        `| Email status | ${post.email?.status || 'N/A'} |`,
       ];
 
       if (include_content) {

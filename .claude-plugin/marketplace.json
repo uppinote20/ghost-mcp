@@ -1,0 +1,17 @@
+{
+  "name": "uppinote-ghost-mcp",
+  "owner": {
+    "name": "uppinote",
+    "url": "https://github.com/uppinote20"
+  },
+  "plugins": [
+    {
+      "name": "ghost-mcp",
+      "description": "Ghost blog management MCP server. Manage posts, pages, tags, newsletters from Claude Code.",
+      "source": {
+        "source": "github",
+        "repo": "uppinote20/ghost-mcp"
+      }
+    }
+  ]
+}

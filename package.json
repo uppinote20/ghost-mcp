@@ -1,22 +1,53 @@
 {
-  "name": "ghost-mcp",
-  "version": "1.1.0",
+  "name": "@uppinote/ghost-mcp",
+  "version": "1.2.0",
   "description": "Ghost Blog Management MCP Server",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/cli.js",
+  "bin": {
+    "ghost-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "README.md",
+    ".env.example"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uppinote20/ghost-mcp.git"
+  },
+  "homepage": "https://github.com/uppinote20/ghost-mcp",
+  "bugs": {
+    "url": "https://github.com/uppinote20/ghost-mcp/issues"
+  },
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "ghost",
+    "ghost-cms",
+    "blog",
+    "claude",
+    "cursor",
+    "model-context-protocol"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/cli.js",
     "dev": "tsc --watch",
-    "start": "node dist/index.js",
+    "start": "node dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "setup": "node scripts/setup.mjs"
+    "setup": "node dist/cli.js setup",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
+    "@clack/prompts": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.20.0"
   },
   "devDependencies": {
-    "@clack/prompts": "^1.2.0",
     "@types/node": "^22.0.0",
     "typescript": "^5.5.0",
     "vitest": "^4.1.2"

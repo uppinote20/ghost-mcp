@@ -286,6 +286,17 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
           isError: true,
         };
       }
+      if (email_segment && !newsletter) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'email_segment requires newsletter to be set (segment is the recipient filter for a newsletter send).',
+            },
+          ],
+          isError: true,
+        };
+      }
 
       let current = await ghost.getPost(id);
       const isLexical = !!current.lexical;
@@ -318,11 +329,12 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         : undefined;
 
       const fields = Object.keys(otherFields);
-      if (fields.length > 0) {
+      if (fields.length > 0 || newsletterOpts) {
         current = await ghost.updatePost(
           { id, updated_at: current.updated_at, ...otherFields },
           newsletterOpts
         );
+        if (newsletterOpts) fields.push('newsletter');
       }
 
       let post: GhostPost;

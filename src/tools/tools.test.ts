@@ -456,6 +456,62 @@ describe('Post Tools — email/newsletter read surface', () => {
   });
 });
 
+// ── Post Tools — newsletter-only update correctness ─────
+
+describe('ghost_update_post — newsletter input correctness', () => {
+  let client: Client;
+  let ghost: GhostAdminApi;
+
+  beforeAll(async () => {
+    ghost = createMockGhost();
+    ({ client } = await setupMcpClient(ghost));
+  });
+
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it('forwards newsletter even when no other body fields are provided', async () => {
+    vi.clearAllMocks();
+    await client.callTool({
+      name: 'ghost_update_post',
+      arguments: {
+        id: '507f1f77bcf86cd799439011',
+        newsletter: 'weekly',
+      },
+    });
+    expect(ghost.updatePost).toHaveBeenCalledWith(
+      expect.objectContaining({ id: '507f1f77bcf86cd799439011' }),
+      { newsletter: 'weekly', email_segment: 'all' }
+    );
+  });
+
+  it('rejects email_segment without newsletter', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_post',
+      arguments: {
+        id: '507f1f77bcf86cd799439011',
+        email_segment: 'status:free',
+      },
+    });
+    expect(result.isError).toBe(true);
+    expect(ghost.updatePost).not.toHaveBeenCalled();
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('email_segment requires newsletter');
+  });
+
+  it('returns error when no fields provided', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_post',
+      arguments: { id: '507f1f77bcf86cd799439011' },
+    });
+    expect(result.isError).toBe(true);
+    expect(ghost.updatePost).not.toHaveBeenCalled();
+  });
+});
+
 // ── Page Tools — write/read alignment ────────────
 
 describe('Page Tools — write/read alignment', () => {

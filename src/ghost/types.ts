@@ -9,6 +9,7 @@ export interface GhostEmail {
   recipient_filter: string | null;
   email_count?: number;
   delivered_count?: number;
+  opened_count?: number;
   failed_count?: number;
   submitted_at?: string | null;
   error?: string | null;

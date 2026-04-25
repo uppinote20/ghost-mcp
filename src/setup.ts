@@ -13,6 +13,7 @@
  *   --force-star-prompt re-ask even if already prompted
  */
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import {
@@ -42,7 +43,7 @@ const FLAG_FORCE_STAR_PROMPT = ARGS.has('--force-star-prompt');
 
 // ── Editor config paths ─────────────────────────
 
-const HOME = process.env.HOME || '~';
+const HOME = os.homedir();
 const STAR_MARKER = path.join(HOME, '.config', 'ghost-mcp', '.star-prompted');
 
 const EDITORS: Record<

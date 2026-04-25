@@ -13,6 +13,9 @@ const sub = process.argv[2];
 if (sub === 'setup') {
   const { runSetup } = await import('./setup.js');
   await runSetup();
+} else if (sub !== undefined) {
+  process.stderr.write(`Unknown subcommand: ${sub}. Usage: ghost-mcp [setup]\n`);
+  process.exit(1);
 } else {
   const { StdioServerTransport } = await import(
     '@modelcontextprotocol/sdk/server/stdio.js'

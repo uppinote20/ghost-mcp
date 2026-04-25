@@ -527,7 +527,7 @@ describe('Page Tools — write/read alignment', () => {
     await client.close();
   });
 
-  it('ghost_get_page surfaces visibility, feature_image, meta fields, excerpt', async () => {
+  it('ghost_get_page surfaces visibility, feature_image, meta fields, excerpt, created', async () => {
     const result = await client.callTool({
       name: 'ghost_get_page',
       arguments: { slug: 'about' },
@@ -538,6 +538,7 @@ describe('Page Tools — write/read alignment', () => {
     expect(text).toContain('| Meta title |');
     expect(text).toContain('| Meta description |');
     expect(text).toContain('| Excerpt |');
+    expect(text).toContain('| Created |');
   });
 
   it('ghost_list_pages includes Vis column', async () => {

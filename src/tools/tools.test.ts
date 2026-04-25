@@ -506,15 +506,18 @@ describe('Post Tools — email engagement metrics', () => {
   it('ghost_get_post omits engagement rows when email object missing', async () => {
     const ghost = createMockGhost();
     const { client: c } = await setupMcpClient(ghost);
-    const result = await c.callTool({
-      name: 'ghost_get_post',
-      arguments: { id: '507f1f77bcf86cd799439011' },
-    });
-    const text = (result.content as { type: string; text: string }[])[0].text;
-    expect(text).not.toContain('Recipients');
-    expect(text).not.toContain('Delivered');
-    expect(text).not.toContain('Opened');
-    await c.close();
+    try {
+      const result = await c.callTool({
+        name: 'ghost_get_post',
+        arguments: { id: '507f1f77bcf86cd799439011' },
+      });
+      const text = (result.content as { type: string; text: string }[])[0].text;
+      expect(text).not.toContain('Recipients');
+      expect(text).not.toContain('Delivered');
+      expect(text).not.toContain('Opened');
+    } finally {
+      await c.close();
+    }
   });
 
   it('ghost_list_posts(show_email=true) shows Recip and Open% columns', async () => {
@@ -542,15 +545,18 @@ describe('Post Tools — email engagement metrics', () => {
       },
     });
     const { client: c } = await setupMcpClient(ghost);
-    const result = await c.callTool({
-      name: 'ghost_get_post',
-      arguments: { id: '507f1f77bcf86cd799439011' },
-    });
-    const text = (result.content as { type: string; text: string }[])[0].text;
-    expect(text).toContain('| Recipients | 100 |');
-    expect(text).toContain('| Delivered | 0 / 100 (0.0%) |');
-    expect(text).toContain('| Opened | 0 / 0 (-) |');
-    await c.close();
+    try {
+      const result = await c.callTool({
+        name: 'ghost_get_post',
+        arguments: { id: '507f1f77bcf86cd799439011' },
+      });
+      const text = (result.content as { type: string; text: string }[])[0].text;
+      expect(text).toContain('| Recipients | 100 |');
+      expect(text).toContain('| Delivered | 0 / 100 (0.0%) |');
+      expect(text).toContain('| Opened | 0 / 0 (-) |');
+    } finally {
+      await c.close();
+    }
   });
 });
 

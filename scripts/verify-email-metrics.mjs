@@ -76,17 +76,18 @@ async function main() {
   console.log('\nNewsletter object:');
   console.log(JSON.stringify(post.newsletter, null, 2));
 
-  // 2. Full email object via separate endpoint.
+  // 2. Full email object via separate endpoint. Cache for section 3 reuse.
+  let fullEmail = null;
   if (post.email?.id) {
     console.log('\n## 2. Full email object (via GET /emails/:email_id/)\n');
     try {
       const emailRes = await get(`emails/${post.email.id}/`);
-      const email = emailRes.emails?.[0];
-      console.log('Full email keys:', Object.keys(email || {}).sort());
+      fullEmail = emailRes.emails?.[0] ?? null;
+      console.log('Full email keys:', Object.keys(fullEmail || {}).sort());
       console.log('Full email sample:');
       console.log(
         JSON.stringify(
-          email,
+          fullEmail,
           (k, v) =>
             // hide bulky html/plaintext to keep output readable
             k === 'html' || k === 'plaintext'
@@ -100,18 +101,10 @@ async function main() {
     }
   }
 
-  // 3. Diff of keys between embedded and full
+  // 3. Diff of keys between embedded and full (reuse fullEmail from section 2)
   console.log('\n## 3. Field availability summary\n');
   const embeddedKeys = new Set(Object.keys(post.email || {}));
-  let fullKeys = new Set();
-  if (post.email?.id) {
-    try {
-      const emailRes = await get(`emails/${post.email.id}/`);
-      fullKeys = new Set(Object.keys(emailRes.emails?.[0] || {}));
-    } catch {
-      /* already logged */
-    }
-  }
+  const fullKeys = new Set(Object.keys(fullEmail || {}));
   const onlyEmbedded = [...embeddedKeys].filter((k) => !fullKeys.has(k));
   const onlyFull = [...fullKeys].filter((k) => !embeddedKeys.has(k));
   const common = [...embeddedKeys].filter((k) => fullKeys.has(k));

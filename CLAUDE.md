@@ -33,7 +33,7 @@ npm test
 
 - npm: `@uppinote/ghost-mcp` (public, scoped). v1.2.0+
 - Claude Code plugin: 같은 repo가 single-plugin marketplace 역할. 사용자는
-  `/plugin marketplace add uppinote20/ghost-mcp` → `/plugin install ghost-mcp@uppinote-ghost-mcp`
+  `/plugin marketplace add uppinote20/ghost-mcp` → `/plugin install ghost-mcp@ghost-mcp`
 - 사용자 등록 형식: `"command": "npx", "args": ["-y", "@uppinote/ghost-mcp@latest"]`
   (plugin 흐름은 같은 등록을 자동 생성 + userConfig로 env 입력)
 - Tag push 시 `.github/workflows/release.yml`이 npm publish + GitHub Release publish 자동 처리

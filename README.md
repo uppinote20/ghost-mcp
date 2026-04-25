@@ -23,7 +23,7 @@ In a Claude Code session:
 
 ```
 /plugin marketplace add uppinote20/ghost-mcp
-/plugin install ghost-mcp@uppinote-ghost-mcp
+/plugin install ghost-mcp@ghost-mcp
 ```
 
 Claude Code prompts for your Ghost URL and Admin API Key, stores the key in your system keychain, and enables the MCP server. Updates flow with the rest of your plugins — no manual `npm` step.
@@ -89,7 +89,7 @@ If you prefer to configure manually, add to your MCP settings:
 
 Earlier versions registered the server with `node /path/to/dist/index.js`, which doesn't auto-update. Pick one of the new flows:
 
-- **Claude Code plugin**: `/plugin marketplace add uppinote20/ghost-mcp` → `/plugin install ghost-mcp@uppinote-ghost-mcp`. Then remove the old `ghost-blog` entry from `~/.claude/settings.json` to avoid duplication.
+- **Claude Code plugin**: `/plugin marketplace add uppinote20/ghost-mcp` → `/plugin install ghost-mcp@ghost-mcp`. Then remove the old `ghost-blog` entry from `~/.claude/settings.json` to avoid duplication.
 - **Setup wizard**: `npx -y @uppinote/ghost-mcp@latest setup` and choose "overwrite" when it detects the existing entry.
 
 Then restart your editor. The old `git clone` directory can be deleted afterward.

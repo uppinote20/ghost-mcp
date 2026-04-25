@@ -118,6 +118,17 @@ describe('Post Tools (MCP integration)', () => {
     expect(text).toContain('Test Post');
   });
 
+  it('ghost_list_posts accepts status: sent and forwards it to getPosts', async () => {
+    const result = await client.callTool({
+      name: 'ghost_list_posts',
+      arguments: { status: 'sent' },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(ghost.getPosts).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'sent' })
+    );
+  });
+
   it('ghost_get_post accepts valid ID', async () => {
     const result = await client.callTool({
       name: 'ghost_get_post',

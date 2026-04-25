@@ -30,15 +30,16 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         ),
     },
     async ({ status, tag, search, limit, show_email }) => {
+      const showEmail =
+        show_email ?? (status === 'scheduled' || status === 'sent');
+
       const { posts, pagination } = await ghost.getPosts({
         status,
         tag,
         search,
         limit,
+        includeEmail: showEmail,
       });
-
-      const showEmail =
-        show_email ?? (status === 'scheduled' || status === 'sent');
 
       const rows = posts.map((p) => {
         const tags = p.tags.map((t) => t.name).join(', ');
@@ -96,8 +97,8 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
       }
 
       const post = id
-        ? await ghost.getPost(id)
-        : await ghost.getPostBySlug(slug!);
+        ? await ghost.getPost(id, { includeEmail: true })
+        : await ghost.getPostBySlug(slug!, { includeEmail: true });
 
       const tags = post.tags.map((t) => t.name).join(', ');
       const lines = [
@@ -272,13 +273,9 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
       newsletter,
       email_segment,
     }) => {
-      // Fetch current post for optimistic locking
       let current = await ghost.getPost(id);
-
-      // Detect editor format: lexical posts need lexical, mobiledoc posts need mobiledoc
       const isLexical = !!current.lexical;
 
-      // Convert markdown to the correct editor format
       let contentField: Record<string, string> = {};
       if (markdown !== undefined) {
         contentField = isLexical
@@ -286,8 +283,8 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
           : { mobiledoc: toMobiledoc(markdown) };
       }
 
-      // Separate visibility from other fields — Ghost API ignores visibility
-      // when sent alongside other fields in certain cases.
+      // Ghost ignores visibility when sent alongside other fields, so we split
+      // the update into a content PUT and a visibility-only PUT.
       const otherFields: Omit<GhostPostUpdate, 'id' | 'updated_at'> = {
         ...(title !== undefined && { title }),
         ...(slug !== undefined && { slug }),
@@ -302,22 +299,18 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         ...contentField,
       };
 
-      // Newsletter options — only passed when status changes to published
       const newsletterOpts = newsletter
         ? { newsletter, email_segment: email_segment || 'all' }
         : undefined;
 
-      // Step 1: Update non-visibility fields
-      if (Object.keys(otherFields).length > 0) {
+      const fields = Object.keys(otherFields);
+      if (fields.length > 0) {
         current = await ghost.updatePost(
           { id, updated_at: current.updated_at, ...otherFields },
           newsletterOpts
         );
       }
 
-      audit('update_post', { id, fields: Object.keys(otherFields) });
-
-      // Step 2: Update visibility separately
       let post: GhostPost;
       if (visibility !== undefined) {
         post = await ghost.updatePost({
@@ -325,9 +318,12 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
           updated_at: current.updated_at,
           visibility,
         });
+        fields.push('visibility');
       } else {
         post = current;
       }
+
+      audit('update_post', { id, fields });
 
       return {
         content: [

@@ -22,7 +22,7 @@ describe('GhostAdminApi', () => {
 
   // ── Lazy-include fields ──
 
-  describe('include=email,newsletter on read paths', () => {
+  describe('include=email,newsletter on read paths (opt-in)', () => {
     function stubFetchOk() {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
@@ -33,21 +33,42 @@ describe('GhostAdminApi', () => {
       return fetchMock;
     }
 
-    it('getPost requests include=tags,email,newsletter', async () => {
+    it('getPost defaults to include=tags only (cold callers stay cheap)', async () => {
       const fetchMock = stubFetchOk();
       await api.getPost('507f1f77bcf86cd799439011');
       const url = fetchMock.mock.calls[0][0] as string;
-      expect(url).toContain('include=tags,email,newsletter');
+      expect(url).toContain('include=tags');
+      expect(url).not.toContain('email');
+      expect(url).not.toContain('newsletter');
     });
 
-    it('getPostBySlug requests include=tags,email,newsletter', async () => {
+    it('getPost includes email,newsletter when includeEmail=true', async () => {
       const fetchMock = stubFetchOk();
-      await api.getPostBySlug('hello-world');
+      await api.getPost('507f1f77bcf86cd799439011', { includeEmail: true });
       const url = fetchMock.mock.calls[0][0] as string;
       expect(url).toContain('include=tags,email,newsletter');
     });
 
-    it('getPosts requests include=tags,email,newsletter (URLSearchParams-encoded)', async () => {
+    it('getPostBySlug includes email,newsletter when includeEmail=true', async () => {
+      const fetchMock = stubFetchOk();
+      await api.getPostBySlug('hello-world', { includeEmail: true });
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain('include=tags,email,newsletter');
+    });
+
+    it('getPosts includes email,newsletter when includeEmail=true (URLSearchParams-encoded)', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ posts: [], meta: {} }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      await api.getPosts({ includeEmail: true });
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain('include=tags%2Cemail%2Cnewsletter');
+    });
+
+    it('getPosts defaults to include=tags only', async () => {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -56,7 +77,9 @@ describe('GhostAdminApi', () => {
       vi.stubGlobal('fetch', fetchMock);
       await api.getPosts();
       const url = fetchMock.mock.calls[0][0] as string;
-      expect(url).toContain('include=tags%2Cemail%2Cnewsletter');
+      expect(url).toContain('include=tags');
+      expect(url).not.toContain('email');
+      expect(url).not.toContain('newsletter');
     });
   });
 

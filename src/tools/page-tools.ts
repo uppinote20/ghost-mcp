@@ -169,15 +169,14 @@ export function registerPageTools(server: McpServer, ghost: GhostAdminApi) {
         ...(custom_excerpt !== undefined && { custom_excerpt }),
       };
 
-      if (Object.keys(otherFields).length > 0) {
+      const fields = Object.keys(otherFields);
+      if (fields.length > 0) {
         current = await ghost.updatePage({
           id,
           updated_at: current.updated_at,
           ...otherFields,
         });
       }
-
-      audit('update_page', { id, fields: Object.keys(otherFields) });
 
       let page = current;
       if (visibility !== undefined) {
@@ -186,7 +185,10 @@ export function registerPageTools(server: McpServer, ghost: GhostAdminApi) {
           updated_at: current.updated_at,
           visibility,
         });
+        fields.push('visibility');
       }
+
+      audit('update_page', { id, fields });
 
       return {
         content: [

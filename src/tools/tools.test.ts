@@ -144,7 +144,9 @@ describe('Post Tools (MCP integration)', () => {
     });
     const text = (result.content as { type: string; text: string }[])[0].text;
     expect(text).toContain('Test Post');
-    expect(ghost.getPost).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+    expect(ghost.getPost).toHaveBeenCalledWith('507f1f77bcf86cd799439011', {
+      includeEmail: true,
+    });
   });
 
   it('ghost_get_post rejects invalid ID format', async () => {

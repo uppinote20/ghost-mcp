@@ -5,13 +5,22 @@
 
 export interface GhostEmail {
   id: string;
+  uuid?: string;
   status: string;
   recipient_filter: string | null;
   email_count?: number;
   delivered_count?: number;
+  opened_count?: number;
   failed_count?: number;
   submitted_at?: string | null;
   error?: string | null;
+  error_data?: unknown;
+  subject?: string;
+  from?: string;
+  reply_to?: string | null;
+  track_opens?: boolean;
+  track_clicks?: boolean;
+  feedback_enabled?: boolean;
 }
 
 export interface GhostPost {

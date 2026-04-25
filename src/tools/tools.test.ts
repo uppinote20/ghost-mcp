@@ -21,7 +21,15 @@ import { registerSyncTools } from './sync-tools.js';
 // ── Mock Ghost API ──────────────────────────────
 
 function createMockGhost(overrides: Partial<{
-  email: { id: string; status: string; recipient_filter: string | null } | null;
+  email: {
+    id: string;
+    status: string;
+    recipient_filter: string | null;
+    email_count?: number;
+    delivered_count?: number;
+    opened_count?: number;
+    failed_count?: number;
+  } | null;
   newsletter: { id: string; name: string; slug: string } | null;
   email_segment: string;
   status: 'draft' | 'published' | 'scheduled' | 'sent';
@@ -452,6 +460,96 @@ describe('Post Tools — email/newsletter read surface', () => {
     const text = (result.content as { type: string; text: string }[])[0].text;
     expect(text).toContain('Newsletter');
     expect(text).toContain('weekly');
+    await c.close();
+  });
+});
+
+// ── Post Tools — email engagement metrics surface ──────
+
+describe('Post Tools — email engagement metrics', () => {
+  let client: Client;
+
+  beforeAll(async () => {
+    const ghost = createMockGhost({
+      email: {
+        id: 'e1',
+        status: 'submitted',
+        recipient_filter: 'all',
+        email_count: 11,
+        delivered_count: 10,
+        opened_count: 7,
+        failed_count: 1,
+      },
+      newsletter: { id: 'n1', name: 'Weekly', slug: 'weekly' },
+      email_segment: 'all',
+      status: 'published',
+    });
+    ({ client } = await setupMcpClient(ghost));
+  });
+
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it('ghost_get_post surfaces engagement counts and rates', async () => {
+    const result = await client.callTool({
+      name: 'ghost_get_post',
+      arguments: { id: '507f1f77bcf86cd799439011' },
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('| Recipients | 11 |');
+    expect(text).toContain('| Delivered | 10 / 11 (90.9%) |');
+    expect(text).toContain('| Opened | 7 / 10 (70.0%) |');
+    expect(text).toContain('| Failed | 1 |');
+  });
+
+  it('ghost_get_post omits engagement rows when email object missing', async () => {
+    const ghost = createMockGhost();
+    const { client: c } = await setupMcpClient(ghost);
+    const result = await c.callTool({
+      name: 'ghost_get_post',
+      arguments: { id: '507f1f77bcf86cd799439011' },
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).not.toContain('Recipients');
+    expect(text).not.toContain('Delivered');
+    expect(text).not.toContain('Opened');
+    await c.close();
+  });
+
+  it('ghost_list_posts(show_email=true) shows Recip and Open% columns', async () => {
+    const result = await client.callTool({
+      name: 'ghost_list_posts',
+      arguments: { show_email: true },
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('Recip');
+    expect(text).toContain('Open%');
+    expect(text).toContain(' 11 ');  // email_count
+    expect(text).toContain('70%');    // opened/delivered = 7/10 = 70%
+  });
+
+  it('ghost_get_post handles zero delivered gracefully (avoids divide-by-zero)', async () => {
+    const ghost = createMockGhost({
+      email: {
+        id: 'e2',
+        status: 'submitting',
+        recipient_filter: 'all',
+        email_count: 100,
+        delivered_count: 0,
+        opened_count: 0,
+        failed_count: 0,
+      },
+    });
+    const { client: c } = await setupMcpClient(ghost);
+    const result = await c.callTool({
+      name: 'ghost_get_post',
+      arguments: { id: '507f1f77bcf86cd799439011' },
+    });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('| Recipients | 100 |');
+    expect(text).toContain('| Delivered | 0 / 100 (0.0%) |');
+    expect(text).toContain('| Opened | 0 / 0 (-) |');
     await c.close();
   });
 });

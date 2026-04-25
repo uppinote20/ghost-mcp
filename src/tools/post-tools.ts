@@ -56,14 +56,20 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         const news = (p.newsletter?.slug || '-').slice(0, 18).padEnd(18);
         const segment = (p.email_segment ?? '-').slice(0, 14).padEnd(14);
         const emailStatus = (p.email?.status || '-').slice(0, 10).padEnd(10);
-        return `${base} ${news} | ${segment} | ${emailStatus} |`;
+        const recipients = (p.email?.email_count ?? '-').toString().slice(0, 5).padEnd(5);
+        const openRate =
+          p.email?.delivered_count && p.email.delivered_count > 0
+            ? `${(((p.email.opened_count ?? 0) / p.email.delivered_count) * 100).toFixed(0)}%`
+            : '-';
+        const open = openRate.slice(0, 5).padEnd(5);
+        return `${base} ${news} | ${segment} | ${emailStatus} | ${recipients} | ${open} |`;
       });
 
       const header = showEmail
-        ? '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug | Newsletter         | Segment        | Email      |'
+        ? '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug | Newsletter         | Segment        | Email      | Recip | Open% |'
         : '| Status    | Vis    | Date       | Title                                              | Tags                           | Slug |';
       const sep = showEmail
-        ? '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|--------------------|----------------|------------|'
+        ? '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|--------------------|----------------|------------|-------|-------|'
         : '|-----------|--------|------------|----------------------------------------------------|---------------------------------|------|';
 
       const total = pagination?.total ?? posts.length;
@@ -128,6 +134,22 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         `| Email status | ${post.email?.status || 'not sent'} |`,
         `| Email recipient filter | ${post.email?.recipient_filter ?? 'N/A'} |`,
       ];
+
+      const e = post.email;
+      if (e && e.email_count !== undefined) {
+        const recipients = e.email_count;
+        const delivered = e.delivered_count ?? 0;
+        const opened = e.opened_count ?? 0;
+        const failed = e.failed_count ?? 0;
+        const pct = (n: number, d: number) =>
+          d > 0 ? `${((n / d) * 100).toFixed(1)}%` : '-';
+        lines.push(
+          `| Recipients | ${recipients} |`,
+          `| Delivered | ${delivered} / ${recipients} (${pct(delivered, recipients)}) |`,
+          `| Opened | ${opened} / ${delivered} (${pct(opened, delivered)}) |`,
+          `| Failed | ${failed} |`
+        );
+      }
 
       if (include_content) {
         if (post.lexical) {

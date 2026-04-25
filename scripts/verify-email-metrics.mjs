@@ -103,8 +103,12 @@ async function main() {
 
   // 3. Diff of keys between embedded and full (reuse fullEmail from section 2)
   console.log('\n## 3. Field availability summary\n');
+  if (!fullEmail) {
+    console.log('(skipped — full email payload unavailable, see section 2)');
+    return;
+  }
   const embeddedKeys = new Set(Object.keys(post.email || {}));
-  const fullKeys = new Set(Object.keys(fullEmail || {}));
+  const fullKeys = new Set(Object.keys(fullEmail));
   const onlyEmbedded = [...embeddedKeys].filter((k) => !fullKeys.has(k));
   const onlyFull = [...fullKeys].filter((k) => !embeddedKeys.has(k));
   const common = [...embeddedKeys].filter((k) => fullKeys.has(k));

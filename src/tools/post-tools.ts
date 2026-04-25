@@ -13,6 +13,10 @@ import type { GhostPost, GhostPostUpdate } from '../ghost/types.js';
 import { toMobiledoc, toLexical } from '../parsers/markdown-parser.js';
 import { ghostId, safeSlug, audit } from '../validation.js';
 
+function formatPct(n: number, d: number, digits = 1): string {
+  return d > 0 ? `${((n / d) * 100).toFixed(digits)}%` : '-';
+}
+
 export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
   server.tool(
     'ghost_list_posts',
@@ -57,10 +61,11 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         const segment = (p.email_segment ?? '-').slice(0, 14).padEnd(14);
         const emailStatus = (p.email?.status || '-').slice(0, 10).padEnd(10);
         const recipients = (p.email?.email_count ?? '-').toString().slice(0, 5).padEnd(5);
-        const openRate =
-          p.email?.delivered_count && p.email.delivered_count > 0
-            ? `${(((p.email.opened_count ?? 0) / p.email.delivered_count) * 100).toFixed(0)}%`
-            : '-';
+        const openRate = formatPct(
+          p.email?.opened_count ?? 0,
+          p.email?.delivered_count ?? 0,
+          0
+        );
         const open = openRate.slice(0, 5).padEnd(5);
         return `${base} ${news} | ${segment} | ${emailStatus} | ${recipients} | ${open} |`;
       });
@@ -141,12 +146,10 @@ export function registerPostTools(server: McpServer, ghost: GhostAdminApi) {
         const delivered = e.delivered_count ?? 0;
         const opened = e.opened_count ?? 0;
         const failed = e.failed_count ?? 0;
-        const pct = (n: number, d: number) =>
-          d > 0 ? `${((n / d) * 100).toFixed(1)}%` : '-';
         lines.push(
           `| Recipients | ${recipients} |`,
-          `| Delivered | ${delivered} / ${recipients} (${pct(delivered, recipients)}) |`,
-          `| Opened | ${opened} / ${delivered} (${pct(opened, delivered)}) |`,
+          `| Delivered | ${delivered} / ${recipients} (${formatPct(delivered, recipients)}) |`,
+          `| Opened | ${opened} / ${delivered} (${formatPct(opened, delivered)}) |`,
           `| Failed | ${failed} |`
         );
       }

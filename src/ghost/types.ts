@@ -73,8 +73,44 @@ export interface GhostPostUpdate {
   tags?: { name: string }[];
 }
 
-export type GhostPage = GhostPost;
-export type GhostPageUpdate = GhostPostUpdate;
+export interface GhostPage {
+  id: string;
+  uuid: string;
+  title: string;
+  slug: string;
+  status: 'draft' | 'published' | 'scheduled';
+  published_at: string | null;
+  updated_at: string;
+  created_at: string;
+  excerpt: string | null;
+  custom_excerpt: string | null;
+  feature_image: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  visibility: 'public' | 'members' | 'paid' | 'tiers';
+  tags: GhostTag[];
+  html: string | null;
+  plaintext: string | null;
+  mobiledoc: string | null;
+  lexical: string | null;
+}
+
+export interface GhostPageUpdate {
+  id: string;
+  updated_at: string;
+  title?: string;
+  mobiledoc?: string;
+  lexical?: string;
+  slug?: string;
+  status?: 'draft' | 'published' | 'scheduled';
+  visibility?: 'public' | 'members' | 'paid' | 'tiers';
+  published_at?: string;
+  custom_excerpt?: string;
+  feature_image?: string;
+  meta_title?: string;
+  meta_description?: string;
+  tags?: { name: string }[];
+}
 
 export interface GhostNewsletter {
   id: string;

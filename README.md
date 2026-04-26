@@ -16,14 +16,10 @@ Create, edit, publish, and sync blog posts directly from Claude Code, Cursor, or
 ## Quick Start
 
 ```bash
-git clone https://github.com/uppinote20/ghost-mcp.git
-cd ghost-mcp
-npm install
-npm run build
-npm run setup
+npx -y @uppinote/ghost-mcp@latest setup
 ```
 
-The setup wizard registers the server in your editor:
+The setup wizard registers the server in your editor and prompts for the Ghost URL + Admin API Key:
 
 ```
 ┌  ghost-mcp setup
@@ -42,7 +38,13 @@ The setup wizard registers the server in your editor:
 └  Restart your editor to activate.
 ```
 
-> If you run `npm run setup`, you'll see a one-time prompt to star this repo. You can always skip it. Pass `--yes` to skip the prompt, or `--star` to star without asking.
+After setup, your editor is registered with `npx -y @uppinote/ghost-mcp@latest`, so you'll automatically pick up new releases on the next start (npm cache TTL ~24h).
+
+> The setup wizard shows a one-time GitHub star prompt. Pass `--yes` to skip the prompt, or `--star` to star without asking.
+
+## Updating
+
+Because the editor is registered with `npx -y ...@latest`, restarts pick up new versions automatically. To force-refresh immediately, clear npm's npx cache or restart the editor twice.
 
 ## Manual Setup
 
@@ -52,8 +54,8 @@ If you prefer to configure manually, add to your MCP settings:
 {
   "mcpServers": {
     "ghost-blog": {
-      "command": "node",
-      "args": ["/absolute/path/to/ghost-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@uppinote/ghost-mcp@latest"],
       "env": {
         "GHOST_URL": "https://your-blog.com",
         "GHOST_ADMIN_API_KEY": "your_id:your_hex_secret"
@@ -67,6 +69,25 @@ If you prefer to configure manually, add to your MCP settings:
 |--------|--------------|
 | Claude Code | `~/.claude/settings.json` |
 | Cursor | `~/.cursor/mcp.json` |
+
+## Migrating from v1.0.x / v1.1.x
+
+Earlier versions registered the server with `node /path/to/dist/index.js`, which doesn't auto-update. To switch to the npx flow:
+
+1. Run `npx -y @uppinote/ghost-mcp@latest setup` and choose "overwrite" when it detects the existing entry.
+2. Restart your editor.
+3. (Optional) Delete the old `git clone` directory.
+
+## Development (contributors)
+
+```bash
+git clone https://github.com/uppinote20/ghost-mcp.git
+cd ghost-mcp
+npm install
+npm run build
+npm run setup    # registers from local dist via the same wizard
+npm test
+```
 
 ### Getting Your API Key
 

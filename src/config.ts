@@ -2,6 +2,8 @@
  * @tested src/config.test.ts
  * @handbook 2.3-config-validation
  */
+import { checkGhostUrl, checkGhostKey } from './validation.js';
+
 export interface Config {
   ghostUrl: string;
   ghostAdminApiKey: string;
@@ -17,22 +19,11 @@ export function loadConfig(): Config {
     );
   }
 
-  const parsed = new URL(ghostUrl);
-  if (
-    parsed.protocol !== 'https:' &&
-    parsed.hostname !== 'localhost' &&
-    parsed.hostname !== '127.0.0.1'
-  ) {
-    throw new Error('GHOST_URL must use HTTPS (except for localhost)');
-  }
+  const urlError = checkGhostUrl(ghostUrl);
+  if (urlError) throw new Error(`GHOST_URL: ${urlError}`);
 
-  const keyParts = ghostAdminApiKey.split(':');
-  if (keyParts.length !== 2 || !keyParts[0] || !keyParts[1]) {
-    throw new Error('GHOST_ADMIN_API_KEY must be in "id:secret" format');
-  }
-  if (!/^[a-f0-9]+$/.test(keyParts[1])) {
-    throw new Error('GHOST_ADMIN_API_KEY secret must be hex-encoded');
-  }
+  const keyError = checkGhostKey(ghostAdminApiKey);
+  if (keyError) throw new Error(`GHOST_ADMIN_API_KEY: ${keyError}`);
 
   return { ghostUrl, ghostAdminApiKey };
 }

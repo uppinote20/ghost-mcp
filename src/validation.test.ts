@@ -1,7 +1,14 @@
 /** @covers src/validation.ts */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import path from 'path';
-import { ghostId, safeSlug, validateSyncPath, audit } from './validation.js';
+import {
+  ghostId,
+  safeSlug,
+  validateSyncPath,
+  audit,
+  checkGhostUrl,
+  checkGhostKey,
+} from './validation.js';
 
 // ── ghostId ──────────────────────────────────────────────
 
@@ -161,5 +168,75 @@ describe('audit', () => {
     const output = JSON.parse(spy.mock.calls[0][0] as string);
     expect(() => new Date(output.ts)).not.toThrow();
     expect(new Date(output.ts).toISOString()).toBe(output.ts);
+  });
+});
+
+// ── checkGhostUrl ─────────────────────────────────────────
+
+describe('checkGhostUrl', () => {
+  it('rejects empty input', () => {
+    expect(checkGhostUrl('')).toBe('URL is required');
+    expect(checkGhostUrl(undefined)).toBe('URL is required');
+  });
+
+  it('rejects http for non-localhost', () => {
+    expect(checkGhostUrl('http://blog.example.com')).toBe(
+      'Must use HTTPS (except localhost)'
+    );
+  });
+
+  it('accepts https', () => {
+    expect(checkGhostUrl('https://blog.example.com')).toBeUndefined();
+  });
+
+  it('accepts http for localhost / 127.0.0.1', () => {
+    expect(checkGhostUrl('http://localhost:2368')).toBeUndefined();
+    expect(checkGhostUrl('http://127.0.0.1:2368')).toBeUndefined();
+  });
+
+  it('rejects malformed URLs', () => {
+    expect(checkGhostUrl('not-a-url')).toBe('Invalid URL');
+  });
+});
+
+// ── checkGhostKey ─────────────────────────────────────────
+
+describe('checkGhostKey', () => {
+  const validId = '507f1f77bcf86cd799439011';
+
+  it('rejects empty input', () => {
+    expect(checkGhostKey('')).toBe('API key is required');
+    expect(checkGhostKey(undefined)).toBe('API key is required');
+  });
+
+  it('rejects missing colon separator', () => {
+    expect(checkGhostKey('justanid')).toBe('Must be in "id:secret" format');
+  });
+
+  it('rejects empty id or secret around colon', () => {
+    expect(checkGhostKey(':abc')).toBe('Must be in "id:secret" format');
+    expect(checkGhostKey(`${validId}:`)).toBe('Must be in "id:secret" format');
+  });
+
+  it('rejects id that is not 24-char hex', () => {
+    expect(checkGhostKey('badvalue:abcdef0123456789')).toBe(
+      'ID must be a 24-character hex string'
+    );
+    expect(checkGhostKey('5f1a2b:abcdef0123456789')).toBe(
+      'ID must be a 24-character hex string'
+    );
+    expect(checkGhostKey('507F1F77BCF86CD799439011:abc')).toBe(
+      'ID must be a 24-character hex string'
+    );
+  });
+
+  it('rejects non-hex secret', () => {
+    expect(checkGhostKey(`${validId}:not-hex-zzz!`)).toBe(
+      'Secret must be hex-encoded'
+    );
+  });
+
+  it('accepts valid 24-char-hex id with hex secret', () => {
+    expect(checkGhostKey(`${validId}:abcdef0123456789`)).toBeUndefined();
   });
 });

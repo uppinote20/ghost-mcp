@@ -81,8 +81,13 @@ describe('loadConfig', () => {
   });
 
   it('rejects key with non-hex secret', () => {
-    process.env.GHOST_ADMIN_API_KEY = 'aaaaaaaaaaaa:not-hex-value!';
+    process.env.GHOST_ADMIN_API_KEY = 'abcdef1234567890abcdef12:not-hex-value!';
     expect(() => loadConfig()).toThrow('hex-encoded');
+  });
+
+  it('rejects key with non-hex id', () => {
+    process.env.GHOST_ADMIN_API_KEY = 'badid:abcdef0123456789';
+    expect(() => loadConfig()).toThrow('24-character hex');
   });
 
   it('rejects key with multiple colons', () => {

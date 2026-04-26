@@ -77,6 +77,11 @@ export function checkGhostKey(v: string | undefined): string | undefined {
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
     return 'Must be in "id:secret" format';
   }
+  // id is a 24-char hex Ghost ObjectId; secret is hex of any length.
+  // Catch typos / paste errors at setup time instead of at JWT signing.
+  if (!/^[a-f0-9]{24}$/.test(parts[0])) {
+    return 'ID must be a 24-character hex string';
+  }
   if (!/^[a-f0-9]+$/.test(parts[1])) {
     return 'Secret must be hex-encoded';
   }

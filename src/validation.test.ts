@@ -202,6 +202,8 @@ describe('checkGhostUrl', () => {
 // ── checkGhostKey ─────────────────────────────────────────
 
 describe('checkGhostKey', () => {
+  const validId = '507f1f77bcf86cd799439011';
+
   it('rejects empty input', () => {
     expect(checkGhostKey('')).toBe('API key is required');
     expect(checkGhostKey(undefined)).toBe('API key is required');
@@ -213,16 +215,28 @@ describe('checkGhostKey', () => {
 
   it('rejects empty id or secret around colon', () => {
     expect(checkGhostKey(':abc')).toBe('Must be in "id:secret" format');
-    expect(checkGhostKey('id:')).toBe('Must be in "id:secret" format');
+    expect(checkGhostKey(`${validId}:`)).toBe('Must be in "id:secret" format');
+  });
+
+  it('rejects id that is not 24-char hex', () => {
+    expect(checkGhostKey('badvalue:abcdef0123456789')).toBe(
+      'ID must be a 24-character hex string'
+    );
+    expect(checkGhostKey('5f1a2b:abcdef0123456789')).toBe(
+      'ID must be a 24-character hex string'
+    );
+    expect(checkGhostKey('507F1F77BCF86CD799439011:abc')).toBe(
+      'ID must be a 24-character hex string'
+    );
   });
 
   it('rejects non-hex secret', () => {
-    expect(checkGhostKey('id:not-hex-zzz!')).toBe(
+    expect(checkGhostKey(`${validId}:not-hex-zzz!`)).toBe(
       'Secret must be hex-encoded'
     );
   });
 
-  it('accepts valid id:hex format', () => {
-    expect(checkGhostKey('5f1a2b:abcdef0123456789')).toBeUndefined();
+  it('accepts valid 24-char-hex id with hex secret', () => {
+    expect(checkGhostKey(`${validId}:abcdef0123456789`)).toBeUndefined();
   });
 });

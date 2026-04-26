@@ -203,12 +203,14 @@ export async function runSetup(): Promise<void> {
   ) as string;
 
   // 4. Build MCP config — uses `npx -y` so the editor always pulls the latest
-  //    published version on next start (npm cache TTL is ~24h).
+  //    published version on next start (npm cache TTL is ~24h). Normalise URL
+  //    once so the success note and the saved config show the same value.
+  const normalisedUrl = ghostUrl.replace(/\/$/, '');
   const serverConfig = {
     command: 'npx',
     args: ['-y', `${NPM_PACKAGE}@latest`],
     env: {
-      GHOST_URL: ghostUrl.replace(/\/$/, ''),
+      GHOST_URL: normalisedUrl,
       GHOST_ADMIN_API_KEY: apiKey,
     },
   };
@@ -260,7 +262,7 @@ export async function runSetup(): Promise<void> {
   s.stop('Config saved');
 
   note(
-    `Package: ${NPM_PACKAGE}@latest (auto-updated by npx)\nGhost:   ${ghostUrl}`,
+    `Package: ${NPM_PACKAGE}@latest (auto-updated by npx)\nGhost:   ${normalisedUrl}`,
     'ghost-blog registered'
   );
 

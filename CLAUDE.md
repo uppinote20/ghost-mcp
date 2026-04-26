@@ -58,13 +58,13 @@ npm (package-lock.json)
 | 찾는 것 | HANDBOOK 섹션 |
 |---------|---------------|
 | 모듈 의존 방향 | 1.2 |
-| MCP 부트스트랩 / Server Instructions | 2 |
+| MCP 부트스트랩 / Server Instructions / Setup wizard | 2 |
 | JWT 토큰 / 에러 정규화 / Lazy-include | 3 |
 | Post/Page 타입 분리 | 4 |
 | Zod schema + 표 출력 / Optimistic locking / Empty-input guard | 5 |
 | 검증 (ghostId, safeSlug, path traversal) / JWT 보안 | 6 |
 | 마크다운 포맷 자동 감지 / Sync index / Lexical vs Mobiledoc | 7 |
-| InMemoryTransport / fetch mock / 양방향 마커 | 8 |
+| InMemoryTransport / fetch mock / Testable module 설계 / 양방향 마커 | 8 |
 
 ### Boilerplate Reference
 

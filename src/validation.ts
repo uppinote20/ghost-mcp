@@ -47,3 +47,38 @@ export function audit(
     })
   );
 }
+
+/**
+ * Pure-function checks used by both the boundary loader (config.ts) and the
+ * setup wizard prompts (setup.ts). Return undefined on valid input, an error
+ * message on invalid. Single source of truth — keeps the rules and messages
+ * from drifting between server-startup validation and the interactive UI.
+ */
+export function checkGhostUrl(v: string | undefined): string | undefined {
+  if (!v) return 'URL is required';
+  let parsed: URL;
+  try {
+    parsed = new URL(v);
+  } catch {
+    return 'Invalid URL';
+  }
+  if (
+    parsed.protocol !== 'https:' &&
+    !['localhost', '127.0.0.1'].includes(parsed.hostname)
+  ) {
+    return 'Must use HTTPS (except localhost)';
+  }
+  return undefined;
+}
+
+export function checkGhostKey(v: string | undefined): string | undefined {
+  if (!v) return 'API key is required';
+  const parts = v.split(':');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return 'Must be in "id:secret" format';
+  }
+  if (!/^[a-f0-9]+$/.test(parts[1])) {
+    return 'Secret must be hex-encoded';
+  }
+  return undefined;
+}

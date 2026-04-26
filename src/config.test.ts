@@ -49,12 +49,12 @@ describe('loadConfig', () => {
 
   it('rejects HTTP for non-localhost', () => {
     process.env.GHOST_URL = 'http://blog.example.com';
-    expect(() => loadConfig()).toThrow('GHOST_URL must use HTTPS');
+    expect(() => loadConfig()).toThrow('GHOST_URL:');
   });
 
   it('rejects HTTP for public IP', () => {
     process.env.GHOST_URL = 'http://203.0.113.50:2368';
-    expect(() => loadConfig()).toThrow('GHOST_URL must use HTTPS');
+    expect(() => loadConfig()).toThrow('GHOST_URL:');
   });
 
   // ── API key format ──

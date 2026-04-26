@@ -11,6 +11,8 @@
  *   --yes               non-interactive; skips star prompt
  *   --star              star without prompting (dotfiles / CI consent)
  *   --force-star-prompt re-ask even if already prompted
+ *
+ * @handbook 2.4-setup-wizard
  */
 import fs from 'fs';
 import os from 'os';
@@ -29,17 +31,11 @@ import {
   spinner,
   log,
 } from '@clack/prompts';
+import { checkGhostUrl, checkGhostKey } from './validation.js';
 
 const REPO = 'uppinote20/ghost-mcp';
 const REPO_URL = `https://github.com/${REPO}`;
 const NPM_PACKAGE = '@uppinote/ghost-mcp';
-
-// ── Flags ────────────────────────────────────────
-
-const ARGS = new Set(process.argv.slice(2));
-const FLAG_YES = ARGS.has('--yes');
-const FLAG_STAR = ARGS.has('--star');
-const FLAG_FORCE_STAR_PROMPT = ARGS.has('--force-star-prompt');
 
 // ── Editor config paths ─────────────────────────
 
@@ -129,19 +125,25 @@ function tryStar(): void {
   }
 }
 
-async function offerStar(): Promise<void> {
+interface StarFlags {
+  yes: boolean;
+  star: boolean;
+  forceStarPrompt: boolean;
+}
+
+async function offerStar(flags: StarFlags): Promise<void> {
   // --star: explicit opt-in, no prompt (dotfiles / CI consent)
-  if (FLAG_STAR) {
+  if (flags.star) {
     tryStar();
     markStarPrompted();
     return;
   }
 
   // --yes: non-interactive; star is always prompt-only, so skip
-  if (FLAG_YES) return;
+  if (flags.yes) return;
 
   // Already asked once; stay quiet unless user forces re-prompt
-  if (fs.existsSync(STAR_MARKER) && !FLAG_FORCE_STAR_PROMPT) return;
+  if (fs.existsSync(STAR_MARKER) && !flags.forceStarPrompt) return;
 
   // Mark before prompting so Ctrl+C is treated as "No" — prevents re-asking
   // on the next run when setup itself already succeeded.
@@ -161,6 +163,13 @@ async function offerStar(): Promise<void> {
 // ── Main ─────────────────────────────────────────
 
 export async function runSetup(): Promise<void> {
+  // Parse flags lazily so importing this module (e.g. from tests) has no
+  // process.argv side-effects.
+  const args = new Set(process.argv.slice(2));
+  const flagYes = args.has('--yes');
+  const flagStar = args.has('--star');
+  const flagForceStarPrompt = args.has('--force-star-prompt');
+
   intro('ghost-mcp setup');
 
   // 1. Ghost URL
@@ -168,21 +177,7 @@ export async function runSetup(): Promise<void> {
     await text({
       message: 'Ghost blog URL',
       placeholder: 'https://your-blog.com',
-      validate: (v) => {
-        if (!v) return 'URL is required';
-        try {
-          const u = new URL(v);
-          if (
-            u.protocol !== 'https:' &&
-            !['localhost', '127.0.0.1'].includes(u.hostname)
-          ) {
-            return 'Must use HTTPS (except localhost)';
-          }
-        } catch {
-          return 'Invalid URL';
-        }
-        return undefined;
-      },
+      validate: checkGhostUrl,
     })
   );
 
@@ -191,17 +186,7 @@ export async function runSetup(): Promise<void> {
     await password({
       message: 'Admin API Key (Ghost → Settings → Integrations)',
       mask: '*',
-      validate: (v) => {
-        if (!v) return 'API key is required';
-        const parts = v.split(':');
-        if (parts.length !== 2 || !parts[0] || !parts[1]) {
-          return 'Must be in "id:secret" format';
-        }
-        if (!/^[a-f0-9]+$/.test(parts[1])) {
-          return 'Secret must be hex-encoded';
-        }
-        return undefined;
-      },
+      validate: checkGhostKey,
     })
   );
 
@@ -234,7 +219,7 @@ export async function runSetup(): Promise<void> {
       JSON.stringify({ mcpServers: { 'ghost-blog': serverConfig } }, null, 2),
       'Add this to your MCP config'
     );
-    await offerStar();
+    await offerStar({ yes: flagYes, star: flagStar, forceStarPrompt: flagForceStarPrompt });
     outro('Copy the config above to your editor settings.');
     return;
   }
@@ -279,7 +264,7 @@ export async function runSetup(): Promise<void> {
     'ghost-blog registered'
   );
 
-  await offerStar();
+  await offerStar({ yes: flagYes, star: flagStar, forceStarPrompt: flagForceStarPrompt });
 
   outro(`Restart ${EDITORS[editor].label} to activate the MCP server.`);
 }

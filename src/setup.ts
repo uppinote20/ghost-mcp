@@ -198,9 +198,9 @@ export async function runSetup(): Promise<void> {
         { value: 'claude-code', label: 'Claude Code', hint: '~/.claude/settings.json' },
         { value: 'cursor', label: 'Cursor', hint: '~/.cursor/mcp.json' },
         { value: 'print', label: 'Print config (manual setup)' },
-      ],
+      ] as const,
     })
-  ) as string;
+  );
 
   // 4. Build MCP config — uses `npx -y` so the editor always pulls the latest
   //    published version on next start (npm cache TTL is ~24h). Normalise URL

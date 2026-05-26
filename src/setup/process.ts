@@ -33,31 +33,23 @@ export function run(
     ...options,
   };
 
-  try {
-    const result = spawnSync(cli, args, mergedOptions);
+  const result = spawnSync(cli, args, mergedOptions);
 
-    // spawnSync sets error when the command could not be spawned
-    if (result.error) {
-      return {
-        status: null,
-        stdout: '',
-        stderr: '',
-        error: result.error,
-      };
-    }
-
-    return {
-      status: result.status ?? 0,
-      stdout: typeof result.stdout === 'string' ? result.stdout : result.stdout?.toString() ?? '',
-      stderr: typeof result.stderr === 'string' ? result.stderr : result.stderr?.toString() ?? '',
-    };
-  } catch (err) {
-    // Defensive: shouldn't reach here with spawnSync, but handle just in case
+  // spawnSync sets `error` when the command could not be spawned (ENOENT etc).
+  // It does not throw, so an outer try/catch would be dead defensive code.
+  if (result.error) {
     return {
       status: null,
       stdout: '',
       stderr: '',
-      error: err instanceof Error ? err : new Error(String(err)),
+      error: result.error,
     };
   }
+
+  return {
+    // status is null on signal termination — preserve that, don't coerce to 0.
+    status: result.status,
+    stdout: typeof result.stdout === 'string' ? result.stdout : '',
+    stderr: typeof result.stderr === 'string' ? result.stderr : '',
+  };
 }

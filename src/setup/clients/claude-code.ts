@@ -1,5 +1,12 @@
 /**
- * Claude Code MCP adapter — wraps `claude mcp add/list/get/remove`.
+ * Claude Code MCP adapter — wraps `claude mcp add/list/remove`.
+ *
+ * Note: Claude Code's `mcp get` is human-readable text and does NOT expose env
+ * vars (security masking). `mcp list` exposes each server's command and args
+ * inline but also masks env. So we use `mcp list` for read, filter to the
+ * target name, and leave env empty — drift on env cannot be detected from this
+ * CLI surface, only on command/args (e.g. an old dev-clone `node /path/.../
+ * dist/index.js` vs the canonical npx invocation).
  *
  * @handbook 2.4-setup-wizard
  */
@@ -36,44 +43,41 @@ export const claudeCode: McpClient = {
     return ['mcp', 'list'];
   },
 
-  getArgs(name: string): string[] {
-    return ['mcp', 'get', name, '--json'];
+  // Delegates to `mcp list` and then filters by name in parseGet.
+  // `mcp get` cannot be used because the current Claude Code release emits
+  // human-readable text without the command/args/env fields.
+  getArgs(_name: string): string[] {
+    return ['mcp', 'list'];
   },
 
   removeArgs(name: string): string[] {
     return ['mcp', 'remove', '-s', 'user', name];
   },
 
-  parseGet(stdout: string, _name: string): RegisteredEntry | null {
-    if (!stdout || typeof stdout !== 'string') {
+  parseGet(stdout: string, name: string): RegisteredEntry | null {
+    if (!stdout || typeof stdout !== 'string') return null;
+
+    // `mcp list` line shape (stdio):
+    //   <name>: <command> [<arg> ...] - <status emoji + text>
+    // HTTP entries end with "(HTTP)" or start with http(s)://; we skip those.
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const linePattern = new RegExp(`^${escaped}:\\s+(.+?)\\s+-\\s+`, 'm');
+
+    const match = stdout.match(linePattern);
+    if (!match) return null;
+
+    const cmdAndArgs = match[1].trim();
+    if (/\(HTTP\)$/.test(cmdAndArgs) || /^https?:\/\//.test(cmdAndArgs)) {
       return null;
     }
 
-    try {
-      const data = JSON.parse(stdout) as unknown;
+    const tokens = cmdAndArgs.split(/\s+/);
+    const command = tokens[0];
+    const args = tokens.slice(1);
 
-      // Validate shape: must have command field that is a string
-      if (
-        typeof data === 'object' &&
-        data !== null &&
-        'command' in data &&
-        typeof (data as Record<string, unknown>).command === 'string'
-      ) {
-        const parsed = data as Record<string, unknown>;
-        return {
-          command: parsed.command as string,
-          args: Array.isArray(parsed.args) ? parsed.args : [],
-          env:
-            typeof parsed.env === 'object' && parsed.env !== null
-              ? (parsed.env as Partial<GhostEnv>)
-              : {},
-        };
-      }
-
-      return null;
-    } catch {
-      // JSON.parse failed or any other error
-      return null;
-    }
+    // env is intentionally empty — Claude Code masks it. classify treats an
+    // empty registered env as "in-sync on env" so the wizard still detects
+    // command/args drift (the v1.0.x → npx migration case).
+    return { command, args, env: {} };
   },
 };

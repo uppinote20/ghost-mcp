@@ -1,12 +1,12 @@
 /**
  * Claude Code MCP adapter — wraps `claude mcp add/list/remove`.
  *
- * Note: Claude Code's `mcp get` is human-readable text and does NOT expose env
- * vars (security masking). `mcp list` exposes each server's command and args
- * inline but also masks env. So we use `mcp list` for read, filter to the
+ * Note: `claude mcp get` only prints scope + status; it does not expose
+ * command, args, or env. `claude mcp list` exposes each server's command and
+ * args inline but masks env. So we use `mcp list` for read, filter to the
  * target name, and leave env empty — drift on env cannot be detected from this
- * CLI surface, only on command/args (e.g. an old dev-clone `node /path/.../
- * dist/index.js` vs the canonical npx invocation).
+ * CLI surface, only on command/args (e.g. an old dev-clone
+ * `node /path/.../dist/index.js` vs the canonical npx invocation).
  *
  * @handbook 2.4-setup-wizard
  */
@@ -55,7 +55,7 @@ export const claudeCode: McpClient = {
   },
 
   parseGet(stdout: string, name: string): RegisteredEntry | null {
-    if (!stdout || typeof stdout !== 'string') return null;
+    if (!stdout) return null;
 
     // `mcp list` line shape (stdio):
     //   <name>: <command> [<arg> ...] - <status emoji + text>
@@ -73,6 +73,7 @@ export const claudeCode: McpClient = {
 
     const tokens = cmdAndArgs.split(/\s+/);
     const command = tokens[0];
+    if (!command) return null;
     const args = tokens.slice(1);
 
     // env is intentionally empty — Claude Code masks it. classify treats an

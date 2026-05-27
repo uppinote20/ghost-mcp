@@ -2,8 +2,12 @@
 import { describe, it, expect } from 'vitest';
 import { gemini } from './gemini.js';
 
-// Fixture: captured live from `gemini mcp list` output
-// Will fill in after live capture in Step 5
+// IMPORTANT — fixture is INFERRED-shape (Claude Code-style
+// `<name>: <cmd> - <status>`), NOT captured from a real `gemini mcp list`.
+// Live attempts on Gemini CLI v0.38.0 produced empty stdout even after
+// `mcp add`, so we cannot lock the real format yet. Tests below confirm the
+// parser works against the inferred shape (the contract); the first time a
+// real output is observed, update this fixture and re-run the suite.
 const LIST_FIXTURE = `Registered MCP Servers:
 
 ghost-blog: npx -y @uppinote/ghost-mcp@latest - ✓ Connected

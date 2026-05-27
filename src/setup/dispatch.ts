@@ -30,8 +30,13 @@ export function write(client: McpClient, env: GhostEnv, name: string = SERVER_NA
   const args = client.addArgs(name, env, CANONICAL_CMD, CANONICAL_ARGS);
   const r = run(client.cli, args, { stdio: 'inherit' });
   if (r.status !== 0) {
+    // Redact env values in the error message — addArgs embeds GHOST_ADMIN_API_KEY
+    // and we don't want the API key leaking into terminal logs / clipboard / paste.
+    const redactedArgs = args.map((a) =>
+      /^(GHOST_URL|GHOST_ADMIN_API_KEY)=/.test(a) ? a.split('=')[0] + '=<redacted>' : a
+    );
     throw new Error(
-      `${client.label}: \`${client.cli} ${args.join(' ')}\` exited with status ${r.status}`
+      `${client.label}: \`${client.cli} ${redactedArgs.join(' ')}\` exited with status ${r.status}`
     );
   }
 }

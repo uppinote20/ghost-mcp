@@ -19,10 +19,15 @@ Create, edit, publish, and sync blog posts directly from Claude Code, Cursor, or
 npx -y @uppinote/ghost-mcp@latest setup
 ```
 
-The setup wizard registers the server in your editor and prompts for the Ghost URL + Admin API Key:
+The wizard auto-detects supported CLIs (Claude Code, Codex CLI, Gemini CLI), shows the current registration state of each, prompts for the Ghost URL + Admin API Key, and registers via each CLI's own `mcp add` command:
 
 ```
 ┌  ghost-mcp setup
+│
+◇  MCP clients
+│    ⚠  Claude Code   stale — args are [...dev-clone...]
+│    ○  Codex CLI     not registered
+│    ○  Gemini CLI    not registered
 │
 ◆  Ghost blog URL
 │  https://your-blog.com
@@ -30,15 +35,17 @@ The setup wizard registers the server in your editor and prompts for the Ghost U
 ◆  Admin API Key (Ghost → Settings → Integrations)
 │  ************************************
 │
-◆  Register in
-│  ● Claude Code
-│  ○ Cursor
-│  ○ Print config (manual setup)
+◆  Apply to which clients?
+│  ◼ Claude Code (fix stale)
+│  ◼ Codex CLI (new install)
+│  ◼ Gemini CLI (new install)
 │
-└  Restart your editor to activate.
+└  Restart: Claude Code, Codex CLI, Gemini CLI
 ```
 
-After setup, your editor is registered with `npx -y @uppinote/ghost-mcp@latest`, so you'll automatically pick up new releases on the next start (npm cache TTL ~24h).
+State symbols: `✓` in-sync · `⚠` stale (will fix) · `○` not registered (will install). One command covers install, update, and drift-fix across every detected CLI — re-run anytime to verify or after rotating your API key.
+
+Each CLI is registered via its first-party command (`claude mcp add -s user`, `codex mcp add`, `gemini mcp add -s user`) with `npx -y @uppinote/ghost-mcp@latest`, so you automatically pick up new releases on the next CLI restart (npm cache TTL ~24h).
 
 > The setup wizard shows a one-time GitHub star prompt. Pass `--yes` to skip the prompt, or `--star` to star without asking.
 
@@ -48,7 +55,31 @@ Because the editor is registered with `npx -y ...@latest`, restarts pick up new 
 
 ## Manual Setup
 
-If you prefer to configure manually, add to your MCP settings:
+The wizard is the recommended path for Claude Code / Codex / Gemini because each CLI owns its own config format. If you need to configure manually:
+
+**Claude Code, Codex CLI, Gemini CLI** — use their first-party commands directly:
+
+```bash
+# Claude Code
+claude mcp add -s user ghost-blog \
+  -e GHOST_URL=https://your-blog.com \
+  -e GHOST_ADMIN_API_KEY=your_id:your_hex_secret \
+  -- npx -y @uppinote/ghost-mcp@latest
+
+# Codex CLI
+codex mcp add \
+  --env GHOST_URL=https://your-blog.com \
+  --env GHOST_ADMIN_API_KEY=your_id:your_hex_secret \
+  ghost-blog -- npx -y @uppinote/ghost-mcp@latest
+
+# Gemini CLI
+gemini mcp add -s user ghost-blog \
+  -e GHOST_URL=https://your-blog.com \
+  -e GHOST_ADMIN_API_KEY=your_id:your_hex_secret \
+  npx -y @uppinote/ghost-mcp@latest
+```
+
+**Other MCP-compatible clients** (Cursor, Claude Desktop, Windsurf, etc.) — add this entry to your client's MCP settings file:
 
 ```json
 {
@@ -65,17 +96,18 @@ If you prefer to configure manually, add to your MCP settings:
 }
 ```
 
-| Editor | Settings file |
+| Client | Settings file |
 |--------|--------------|
-| Claude Code | `~/.claude/settings.json` |
 | Cursor | `~/.cursor/mcp.json` |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
 
 ## Migrating from v1.0.x / v1.1.x
 
 Earlier versions registered the server with `node /path/to/dist/index.js`, which doesn't auto-update. To switch to the npx flow:
 
-1. Run `npx -y @uppinote/ghost-mcp@latest setup` and choose "overwrite" when it detects the existing entry.
-2. Restart your editor.
+1. Run `npx -y @uppinote/ghost-mcp@latest setup`. The wizard detects the old dev-clone registration as `⚠ stale` and offers to replace it with `npx -y @uppinote/ghost-mcp@latest`. Confirm in the multiselect prompt.
+2. Restart your CLI.
 3. (Optional) Delete the old `git clone` directory.
 
 ## Development (contributors)

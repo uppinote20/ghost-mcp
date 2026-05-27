@@ -218,7 +218,12 @@ export async function runSetup(): Promise<void> {
     .map((r) => {
       const s = r.state;
       if (s.kind !== 'in-sync') return null;
-      return s.entry.env as GhostEnv;
+      // Adapters that mask env return env={} — coerce missing fields to ''
+      // so resolveCanonical's strict equality does not key on undefined.
+      return {
+        GHOST_URL: s.entry.env.GHOST_URL ?? '',
+        GHOST_ADMIN_API_KEY: s.entry.env.GHOST_ADMIN_API_KEY ?? '',
+      };
     })
     .filter((e): e is GhostEnv => e !== null);
 
@@ -253,8 +258,10 @@ export async function runSetup(): Promise<void> {
       message: 'Admin API Key (Ghost → Settings → Integrations)',
       mask: '*',
       validate: (v) => {
-        // Allow pressing Enter to keep the canonical key (pre-filled is masked)
-        if (v === defaultKey) return undefined;
+        // Allow pressing Enter to keep the canonical key (only when one exists).
+        // Without this `defaultKey &&` guard, empty input would silently match
+        // an empty default — first-time setup users could submit a blank key.
+        if (defaultKey && v === defaultKey) return undefined;
         return checkGhostKey(v);
       },
     })

@@ -1,7 +1,7 @@
 /**
  * Interactive setup for ghost-mcp.
- * Registers the MCP server in your editor's config using `npx -y` invocation
- * so the editor always picks up the latest published version.
+ * Registers the MCP server across all detected MCP-capable CLIs using first-party
+ * `mcp add` commands — no direct JSON-file writes.
  *
  * Invoked via:
  *   npx -y @uppinote/ghost-mcp@latest setup
@@ -23,56 +23,81 @@ import {
   outro,
   text,
   password,
-  select,
+  multiselect,
   confirm,
   note,
   cancel,
   isCancel,
-  spinner,
   log,
 } from '@clack/prompts';
 import { checkGhostUrl, checkGhostKey } from './validation.js';
+import { ALL_CLIENTS } from './setup/clients/index.js';
+import { detect, read, write, SERVER_NAME } from './setup/dispatch.js';
+import { classify, resolveCanonical } from './setup/classify.js';
+import { McpClient, ClientState, GhostEnv } from './setup/types.js';
 
 const REPO = 'uppinote20/ghost-mcp';
 const REPO_URL = `https://github.com/${REPO}`;
-const NPM_PACKAGE = '@uppinote/ghost-mcp';
 
-// ── Editor config paths ─────────────────────────
+// ── Helpers ──────────────────────────────────────
 
 const HOME = os.homedir();
 const STAR_MARKER = path.join(HOME, '.config', 'ghost-mcp', '.star-prompted');
 
-const EDITORS: Record<
-  string,
-  { label: string; path: string | null; key: string }
-> = {
-  'claude-code': {
-    label: 'Claude Code',
-    path: path.join(HOME, '.claude', 'settings.json'),
-    key: 'mcpServers',
-  },
-  cursor: {
-    label: 'Cursor',
-    path: path.join(HOME, '.cursor', 'mcp.json'),
-    key: 'mcpServers',
-  },
-  print: {
-    label: 'Print config (manual setup)',
-    path: null,
-    key: 'mcpServers',
-  },
-};
+type ScanRow = { client: McpClient; state: ClientState };
 
-// ── Helpers ──────────────────────────────────────
+function scan(): ScanRow[] {
+  const detected = ALL_CLIENTS.filter(detect);
+  const stub: GhostEnv = { GHOST_URL: '', GHOST_ADMIN_API_KEY: '' };
+  return detected.map((client) => ({
+    client,
+    state: classify(stub, read(client)),
+  }));
+}
+
+function reclassify(rows: ScanRow[], canonical: GhostEnv): ScanRow[] {
+  return rows.map(({ client, state }) => {
+    if (
+      state.kind === 'missing' ||
+      state.kind === 'absent' ||
+      state.kind === 'unparseable'
+    ) {
+      return { client, state };
+    }
+    return { client, state: classify(canonical, state.entry) };
+  });
+}
+
+function symbol(state: ClientState): string {
+  switch (state.kind) {
+    case 'in-sync':     return '✓';
+    case 'stale':       return '⚠';
+    case 'missing':     return '○';
+    case 'unparseable': return '?';
+    case 'absent':      return '—';
+  }
+}
+
+function summary(state: ClientState): string {
+  switch (state.kind) {
+    case 'in-sync':     return 'in-sync';
+    case 'stale':       return `stale — ${state.reasons[0]}`;
+    case 'missing':     return 'not registered';
+    case 'unparseable': return 'config not parseable';
+    case 'absent':      return 'CLI not installed';
+  }
+}
+
+function renderRows(rows: ScanRow[]): void {
+  const lines = rows.map(({ client, state }) =>
+    `  ${symbol(state)}  ${client.label.padEnd(14)}  ${summary(state)}`
+  );
+  note(lines.join('\n'), 'MCP clients');
+}
 
 function bail(msg: string): never {
   cancel(msg);
   process.exit(0);
-}
-
-function bailError(msg: string): never {
-  cancel(msg);
-  process.exit(1);
 }
 
 function check<T>(value: T | symbol): T {
@@ -170,103 +195,143 @@ export async function runSetup(): Promise<void> {
   const flagStar = args.has('--star');
   const flagForceStarPrompt = args.has('--force-star-prompt');
 
+  // 1. Intro
   intro('ghost-mcp setup');
 
-  // 1. Ghost URL
+  // 2. SCAN — detect all installed MCP CLIs and their current registration state
+  const rows = scan();
+
+  if (rows.length === 0) {
+    note(
+      'No supported MCP CLI detected (Claude Code, Codex CLI, Gemini CLI).\nInstall one of them first.',
+      'No clients found'
+    );
+    outro('No changes made.');
+    return;
+  }
+
+  renderRows(rows);
+
+  // 3. RESOLVE CANONICAL (initial) — from any in-sync entries
+  const inSyncEnvs = rows
+    .filter((r) => r.state.kind === 'in-sync')
+    .map((r) => {
+      const s = r.state;
+      if (s.kind !== 'in-sync') return null;
+      return s.entry.env as GhostEnv;
+    })
+    .filter((e): e is GhostEnv => e !== null);
+
+  const initialCanon = resolveCanonical(inSyncEnvs);
+
+  if (initialCanon === 'conflict') {
+    note(
+      'In-sync clients have disagreeing values — you will choose the canonical values below.',
+      'Conflict detected'
+    );
+  }
+
+  const defaultUrl =
+    initialCanon && initialCanon !== 'conflict' ? initialCanon.GHOST_URL : '';
+  const defaultKey =
+    initialCanon && initialCanon !== 'conflict'
+      ? initialCanon.GHOST_ADMIN_API_KEY
+      : '';
+
+  // 4. PROMPT URL + KEY
   const ghostUrl = check(
     await text({
       message: 'Ghost blog URL',
       placeholder: 'https://your-blog.com',
+      initialValue: defaultUrl,
       validate: checkGhostUrl,
     })
   );
 
-  // 2. Admin API Key
   const apiKey = check(
     await password({
       message: 'Admin API Key (Ghost → Settings → Integrations)',
       mask: '*',
-      validate: checkGhostKey,
+      validate: (v) => {
+        // Allow pressing Enter to keep the canonical key (pre-filled is masked)
+        if (v === defaultKey) return undefined;
+        return checkGhostKey(v);
+      },
     })
   );
 
-  // 3. Editor selection
-  const editor = check(
-    await select({
-      message: 'Register in',
-      options: [
-        { value: 'claude-code', label: 'Claude Code', hint: '~/.claude/settings.json' },
-        { value: 'cursor', label: 'Cursor', hint: '~/.cursor/mcp.json' },
-        { value: 'print', label: 'Print config (manual setup)' },
-      ] as const,
-    })
-  );
-
-  // 4. Build MCP config — uses `npx -y` so the editor always pulls the latest
-  //    published version on next start (npm cache TTL is ~24h). Normalise URL
-  //    once so the success note and the saved config show the same value.
-  const normalisedUrl = ghostUrl.replace(/\/$/, '');
-  const serverConfig = {
-    command: 'npx',
-    args: ['-y', `${NPM_PACKAGE}@latest`],
-    env: {
-      GHOST_URL: normalisedUrl,
-      GHOST_ADMIN_API_KEY: apiKey,
-    },
+  const canonical: GhostEnv = {
+    GHOST_URL: ghostUrl.replace(/\/$/, ''),
+    GHOST_ADMIN_API_KEY: apiKey || defaultKey,
   };
 
-  // 5. Print or write
-  if (editor === 'print') {
-    note(
-      JSON.stringify({ mcpServers: { 'ghost-blog': serverConfig } }, null, 2),
-      'Add this to your MCP config'
-    );
-    await offerStar({ yes: flagYes, star: flagStar, forceStarPrompt: flagForceStarPrompt });
-    outro('Copy the config above to your editor settings.');
-    return;
-  }
+  // 5. RECLASSIFY against final canonical
+  const finalRows = reclassify(rows, canonical);
 
-  const { path: settingsPath, key } = EDITORS[editor];
-  if (!settingsPath) bailError('Internal: editor has no settings path');
+  // 6. MULTISELECT — which clients to update
+  const options = finalRows
+    .filter((r) => r.state.kind !== 'unparseable')
+    .map((r) => ({
+      value: r.client.id,
+      label: `${r.client.label} (${summary(r.state)})`,
+      hint: r.state.kind === 'in-sync' ? 'skip — already in-sync' : undefined,
+    }));
 
-  // Read existing settings
-  let settings: Record<string, Record<string, unknown>> = {};
-  if (fs.existsSync(settingsPath)) {
+  const selected = check(
+    await multiselect({
+      message: 'Apply to',
+      options,
+      initialValues: options.map((o) => o.value),
+      required: false,
+    })
+  );
+
+  const selectedIds = new Set(
+    Array.isArray(selected) ? selected : []
+  );
+
+  // 7. APPLY — skip in-sync entries per spec §8.2
+  let applied = 0;
+  let skipped = 0;
+  const failures: Array<{ client: McpClient; error: unknown }> = [];
+
+  for (const { client, state } of finalRows) {
+    if (!selectedIds.has(client.id)) continue;
+    if (state.kind === 'in-sync') {
+      skipped++;
+      continue;
+    }
     try {
-      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-    } catch {
-      log.error(`Failed to parse ${settingsPath}`);
-      bailError('Fix the file manually and retry');
+      write(client, canonical, SERVER_NAME);
+      applied++;
+    } catch (e) {
+      failures.push({ client, error: e });
     }
   }
 
-  if (!settings[key]) settings[key] = {};
-
-  if (settings[key]['ghost-blog']) {
-    const overwrite = check(
-      await confirm({
-        message: 'ghost-blog is already configured. Overwrite?',
-        initialValue: false,
-      })
-    );
-    if (!overwrite) bail('Keeping existing config');
+  // 8. REPORT
+  const reportLines: string[] = [];
+  if (applied > 0) reportLines.push(`✓  Applied to ${applied} client(s)`);
+  if (skipped > 0) reportLines.push(`○  Skipped ${skipped} already in-sync`);
+  if (failures.length > 0) {
+    reportLines.push(`✗  Failed: ${failures.map((f) => f.client.label).join(', ')}`);
+    for (const { client, error } of failures) {
+      log.error(`${client.label}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
+  if (reportLines.length > 0) note(reportLines.join('\n'), 'Result');
 
-  const s = spinner();
-  s.start('Writing config');
-
-  settings[key]['ghost-blog'] = serverConfig;
-  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-
-  s.stop('Config saved');
-
-  note(
-    `Package: ${NPM_PACKAGE}@latest (auto-updated by npx)\nGhost:   ${normalisedUrl}`,
-    'ghost-blog registered'
-  );
-
+  // 9. Star prompt
   await offerStar({ yes: flagYes, star: flagStar, forceStarPrompt: flagForceStarPrompt });
 
-  outro(`Restart ${EDITORS[editor].label} to activate the MCP server.`);
+  // 10. Outro with restart list
+  const restartClients = finalRows
+    .filter((r) => selectedIds.has(r.client.id) && r.state.kind !== 'in-sync')
+    .map((r) => r.client.label);
+
+  if (restartClients.length > 0) {
+    outro(`Restart ${restartClients.join(', ')} to activate the MCP server.`);
+  } else {
+    outro('Done.');
+  }
 }

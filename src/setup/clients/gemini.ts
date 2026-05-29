@@ -49,10 +49,6 @@ export const gemini: McpClient = {
     ];
   },
 
-  listArgs(): string[] {
-    return ['mcp', 'list'];
-  },
-
   // Delegates to `mcp list` and then filters by name in parseGet.
   // Gemini has no `mcp get` subcommand.
   getArgs(_name: string): string[] {

@@ -37,12 +37,6 @@ describe('claudeCode adapter', () => {
     });
   });
 
-  describe('listArgs', () => {
-    it('returns mcp list argv', () => {
-      expect(claudeCode.listArgs()).toEqual(['mcp', 'list']);
-    });
-  });
-
   describe('getArgs', () => {
     it('delegates to mcp list because the CLI mcp get omits config detail', () => {
       expect(claudeCode.getArgs('ghost-blog')).toEqual(['mcp', 'list']);

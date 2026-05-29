@@ -41,12 +41,6 @@ describe('gemini adapter', () => {
     });
   });
 
-  describe('listArgs', () => {
-    it('returns mcp list argv', () => {
-      expect(gemini.listArgs()).toEqual(['mcp', 'list']);
-    });
-  });
-
   describe('getArgs', () => {
     it('delegates to mcp list because Gemini has no mcp get subcommand', () => {
       expect(gemini.getArgs('ghost-blog')).toEqual(['mcp', 'list']);

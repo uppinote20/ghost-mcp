@@ -39,10 +39,6 @@ export const claudeCode: McpClient = {
     ];
   },
 
-  listArgs(): string[] {
-    return ['mcp', 'list'];
-  },
-
   // Delegates to `mcp list` and then filters by name in parseGet.
   // `mcp get` cannot be used because the current Claude Code release emits
   // human-readable text without the command/args/env fields.

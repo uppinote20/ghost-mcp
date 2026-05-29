@@ -37,10 +37,6 @@ export const codex: McpClient = {
     ];
   },
 
-  listArgs(): string[] {
-    return ['mcp', 'list'];
-  },
-
   getArgs(name: string): string[] {
     return ['mcp', 'get', name];
   },

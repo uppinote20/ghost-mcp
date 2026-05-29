@@ -9,7 +9,6 @@ const mockClient: McpClient = {
   label: 'Test Client',
   cli: 'fake-cli',
   addArgs: (name, _env, cmd, args) => ['mcp', 'add', name, '--', cmd, ...args],
-  listArgs: () => ['mcp', 'list'],
   getArgs: (name) => ['mcp', 'get', name],
   removeArgs: (name) => ['mcp', 'remove', name],
   parseGet: (stdout) => (stdout ? { command: 'npx', args: [], env: {} } : null),

@@ -48,12 +48,6 @@ describe('codex adapter', () => {
     });
   });
 
-  describe('listArgs', () => {
-    it('returns mcp list argv', () => {
-      expect(codex.listArgs()).toEqual(['mcp', 'list']);
-    });
-  });
-
   describe('getArgs', () => {
     it('returns mcp get argv with the server name', () => {
       expect(codex.getArgs('ghost-blog')).toEqual(['mcp', 'get', 'ghost-blog']);

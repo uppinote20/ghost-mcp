@@ -57,34 +57,24 @@ function scan(): ScanRow[] {
 
 function reclassify(rows: ScanRow[], canonical: GhostEnv): ScanRow[] {
   return rows.map(({ client, state }) => {
-    if (
-      state.kind === 'missing' ||
-      state.kind === 'absent' ||
-      state.kind === 'unparseable'
-    ) {
-      return { client, state };
-    }
+    if (state.kind === 'missing') return { client, state };
     return { client, state: classify(canonical, state.entry) };
   });
 }
 
 function symbol(state: ClientState): string {
   switch (state.kind) {
-    case 'in-sync':     return '✓';
-    case 'stale':       return '⚠';
-    case 'missing':     return '○';
-    case 'unparseable': return '?';
-    case 'absent':      return '—';
+    case 'in-sync': return '✓';
+    case 'stale':   return '⚠';
+    case 'missing': return '○';
   }
 }
 
 function summary(state: ClientState): string {
   switch (state.kind) {
-    case 'in-sync':     return 'in-sync';
-    case 'stale':       return `stale — ${state.reasons[0]}`;
-    case 'missing':     return 'not registered';
-    case 'unparseable': return 'config not parseable';
-    case 'absent':      return 'CLI not installed';
+    case 'in-sync': return 'in-sync';
+    case 'stale':   return `stale — ${state.reasons[0]}`;
+    case 'missing': return 'not registered';
   }
 }
 
@@ -277,7 +267,6 @@ export async function runSetup(): Promise<void> {
 
   // 6. MULTISELECT — which clients to update
   const options = finalRows
-    .filter((r) => r.state.kind !== 'unparseable')
     .map((r) => ({
       value: r.client.id,
       label: `${r.client.label} (${summary(r.state)})`,
@@ -293,9 +282,7 @@ export async function runSetup(): Promise<void> {
     })
   );
 
-  const selectedIds = new Set(
-    Array.isArray(selected) ? selected : []
-  );
+  const selectedIds = new Set(selected);
 
   // 7. APPLY — skip in-sync entries per spec §8.2
   let applied = 0;

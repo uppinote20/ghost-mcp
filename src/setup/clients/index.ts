@@ -1,7 +1,7 @@
 /**
  * Registry of all MCP client adapters.
  *
- * @handbook 2.2-client-adapters
+ * @handbook 2.5-client-adapters
  */
 import { claudeCode } from './claude-code.js';
 import { codex } from './codex.js';

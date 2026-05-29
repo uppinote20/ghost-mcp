@@ -8,7 +8,8 @@
  * the returned RegisteredEntry. classify.ts treats empty registered env as
  * "in-sync on env" so drift detection focuses on command/args.
  *
- * @handbook 2.4-setup-wizard
+ * @handbook 2.5-client-adapters
+ * @tested src/setup/clients/codex.test.ts
  */
 import { McpClient, RegisteredEntry, GhostEnv } from '../types.js';
 

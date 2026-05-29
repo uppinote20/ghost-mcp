@@ -4,7 +4,8 @@
  * Tests stub this module via vi.spyOn(proc, 'run') to unit-test dispatch logic
  * without launching real processes.
  *
- * @handbook 2.4-setup-wizard
+ * @handbook 2.5-client-adapters
+ * @tested src/setup/process.test.ts
  */
 import { spawnSync, SpawnSyncOptions } from 'node:child_process';
 

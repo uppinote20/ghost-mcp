@@ -6,7 +6,8 @@
  * write()  — call `<cli> mcp add` with the canonical npx invocation
  * remove() — call `<cli> mcp remove`
  *
- * @handbook 2.4-setup-wizard
+ * @handbook 2.5-client-adapters
+ * @tested src/setup/dispatch.test.ts
  */
 import { McpClient, RegisteredEntry, GhostEnv } from './types.js';
 import { run } from './process.js';

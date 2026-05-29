@@ -8,7 +8,8 @@
  * CLI surface, only on command/args (e.g. an old dev-clone
  * `node /path/.../dist/index.js` vs the canonical npx invocation).
  *
- * @handbook 2.4-setup-wizard
+ * @handbook 2.5-client-adapters
+ * @tested src/setup/clients/claude-code.test.ts
  */
 import { McpClient, RegisteredEntry, GhostEnv } from '../types.js';
 

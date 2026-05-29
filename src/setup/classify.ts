@@ -10,7 +10,8 @@
  * always writes fresh env values regardless of drift state, so this conservative
  * env handling is safe.
  *
- * @handbook 2.4-setup-wizard
+ * @handbook 2.5-client-adapters
+ * @tested src/setup/classify.test.ts
  */
 import { ClientState, GhostEnv, RegisteredEntry } from './types.js';
 import { CANONICAL_CMD, CANONICAL_ARGS } from './dispatch.js';

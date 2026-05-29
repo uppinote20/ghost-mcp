@@ -13,6 +13,7 @@
  *   --force-star-prompt re-ask even if already prompted
  *
  * @handbook 2.4-setup-wizard
+ * @tested src/setup.test.ts
  */
 import fs from 'fs';
 import os from 'os';

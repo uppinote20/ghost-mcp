@@ -19,7 +19,8 @@
  * which triggers a benign re-registration on the next setup run. Update the
  * fixture and parser the first time we see real output.
  *
- * @handbook 2.4-setup-wizard
+ * @handbook 2.5-client-adapters
+ * @tested src/setup/clients/gemini.test.ts
  */
 import { McpClient, RegisteredEntry, GhostEnv } from '../types.js';
 

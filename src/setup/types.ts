@@ -1,7 +1,7 @@
 /**
  * Shared types for the multi-client MCP setup adapter system.
  *
- * @handbook 2.4-setup-wizard
+ * @handbook 2.5-client-adapters
  */
 
 export type GhostEnv = {

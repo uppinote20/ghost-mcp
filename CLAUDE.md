@@ -63,7 +63,7 @@ npm (package-lock.json)
 | 찾는 것 | HANDBOOK 섹션 |
 |---------|---------------|
 | 모듈 의존 방향 | 1.2 |
-| MCP 부트스트랩 / Server Instructions / Setup wizard | 2 |
+| MCP 부트스트랩 / Server Instructions / Setup wizard / Multi-client adapter system | 2 |
 | JWT 토큰 / 에러 정규화 / Lazy-include | 3 |
 | Post/Page 타입 분리 | 4 |
 | Zod schema + 표 출력 / Optimistic locking / Empty-input guard | 5 |

@@ -298,21 +298,19 @@ export async function runSetup(): Promise<void> {
 
   const selectedIds = new Set(selected);
 
-  // 7. APPLY — skip in-sync entries per spec §8.2
+  // 7. APPLY — (re)write every selected client. env is masked (adapters return
+  // env: {}), so we cannot tell whether the entered credentials differ from
+  // what's stored; skipping "in-sync" clients would silently drop credential
+  // updates such as API-key rotation. Existing entries (in-sync or stale) pass
+  // replace so `mcp add` doesn't fail on "already exists".
   let applied = 0;
-  let skipped = 0;
   const failures: Array<{ client: McpClient; error: unknown }> = [];
 
   for (const { client, state } of finalRows) {
     if (!selectedIds.has(client.id)) continue;
-    if (state.kind === 'in-sync') {
-      skipped++;
-      continue;
-    }
+    const exists = state.kind === 'in-sync' || state.kind === 'stale';
     try {
-      // Stale entries pass replace=true so write removes the differing entry
-      // before re-adding (most CLIs' `mcp add` refuses to overwrite).
-      await write(client, canonical, SERVER_NAME, { replace: state.kind === 'stale' });
+      await write(client, canonical, SERVER_NAME, { replace: exists });
       applied++;
     } catch (e) {
       failures.push({ client, error: e });
@@ -322,7 +320,6 @@ export async function runSetup(): Promise<void> {
   // 8. REPORT
   const reportLines: string[] = [];
   if (applied > 0) reportLines.push(`✓  Applied to ${applied} client(s)`);
-  if (skipped > 0) reportLines.push(`○  Skipped ${skipped} already in-sync`);
   if (failures.length > 0) {
     reportLines.push(`✗  Failed: ${failures.map((f) => f.client.label).join(', ')}`);
     for (const { client, error } of failures) {

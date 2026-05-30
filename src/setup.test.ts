@@ -70,19 +70,23 @@ describe('setup wizard — discover → apply', () => {
     expect(addCall![1]).toContain('user');
   });
 
-  it('skips write for an in-sync client even when the user checks the box', async () => {
+  it('re-applies a selected in-sync client so credential changes (key rotation) take effect', async () => {
     const prompts = await import('@clack/prompts');
     (prompts.multiselect as ReturnType<typeof vi.fn>).mockResolvedValueOnce(['claude-code']);
 
-    // user-scope entry already matches the canonical npx invocation → in-sync
+    // command/args already match canonical → in-sync, but env is masked so a
+    // rotated key is invisible. Keeping it selected must still rewrite it.
     stubClaudeConfig({ command: 'npx', args: ['-y', '@uppinote/ghost-mcp@latest'] });
     const spy = onlyClaudeInstalled();
 
     const { runSetup } = await import('./setup.js');
     await runSetup();
 
-    const addCall = spy.mock.calls.find(([c, a]) => c === 'claude' && a[0] === 'mcp' && a[1] === 'add');
-    expect(addCall).toBeUndefined();
+    const claudeCalls = spy.mock.calls.filter(([c]) => c === 'claude').map(([, a]) => a);
+    const removeIdx = claudeCalls.findIndex((a) => a[0] === 'mcp' && a[1] === 'remove');
+    const addIdx = claudeCalls.findIndex((a) => a[0] === 'mcp' && a[1] === 'add');
+    expect(addIdx).toBeGreaterThanOrEqual(0); // re-added → credentials refreshed
+    expect(removeIdx).toBeLessThan(addIdx); // replace: remove before add
   });
 
   it('removes then adds for a stale client (the node → npx migration)', async () => {

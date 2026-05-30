@@ -284,7 +284,7 @@ export async function runSetup(): Promise<void> {
     .map((r) => ({
       value: r.client.id,
       label: `${r.client.label} (${summary(r.state)})`,
-      hint: r.state.kind === 'in-sync' ? 'skip — already in-sync' : undefined,
+      hint: r.state.kind === 'in-sync' ? 'in-sync (uncheck to skip)' : undefined,
     }));
 
   const selected = check(

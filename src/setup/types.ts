@@ -21,7 +21,7 @@ export type ClientState =
   | { kind: 'missing' };
 
 export interface McpClient {
-  id: 'claude-code' | 'codex' | 'gemini';
+  id: string; // stable selection key (Set membership); not dispatched on
   label: string;
   cli: string;
   addArgs(name: string, env: GhostEnv, cmd: string, cmdArgs: string[]): string[];

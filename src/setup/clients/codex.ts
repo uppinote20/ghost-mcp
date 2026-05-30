@@ -78,7 +78,9 @@ export const codex: McpClient = {
     // If args is "-", treat as no args
     let args: string[] = [];
     if (argsStr !== '-') {
-      // Split by spaces (args is space-separated in a single line)
+      // Split on whitespace. NOTE: mangles any arg containing a space (e.g. a
+      // path like "/my docs/server.js"). Safe for the canonical
+      // `-y @uppinote/ghost-mcp@latest`; revisit if codex's output format changes.
       args = argsStr.split(/\s+/);
     }
 

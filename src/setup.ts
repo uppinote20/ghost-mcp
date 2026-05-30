@@ -15,9 +15,9 @@
  * @handbook 2.4-setup-wizard
  * @tested src/setup.test.ts
  */
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   intro,
   outro,
@@ -170,7 +170,7 @@ async function offerStar(flags: StarFlags): Promise<void> {
   });
 
   if (isCancel(yes)) return;
-  if (yes) tryStar();
+  if (yes) await tryStar();
 }
 
 // ── Main ─────────────────────────────────────────
@@ -335,8 +335,16 @@ export async function runSetup(): Promise<void> {
   await offerStar({ yes: flagYes, star: flagStar, forceStarPrompt: flagForceStarPrompt });
 
   // 10. Outro with restart list
+  // Exclude clients whose write() failed — they were not actually updated, so
+  // telling the user to restart them would be misleading.
+  const failedIds = new Set(failures.map((f) => f.client.id));
   const restartClients = finalRows
-    .filter((r) => selectedIds.has(r.client.id) && r.state.kind !== 'in-sync')
+    .filter(
+      (r) =>
+        selectedIds.has(r.client.id) &&
+        r.state.kind !== 'in-sync' &&
+        !failedIds.has(r.client.id)
+    )
     .map((r) => r.client.label);
 
   if (restartClients.length > 0) {

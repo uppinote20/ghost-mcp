@@ -1,5 +1,6 @@
 /** @covers src/setup.ts */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'node:fs';
 import * as proc from './setup/process.js';
 
 // Mock @clack/prompts to feed deterministic answers
@@ -11,7 +12,7 @@ vi.mock('@clack/prompts', async () => {
     outro: vi.fn(),
     note: vi.fn(),
     log: { info: vi.fn(), success: vi.fn(), error: vi.fn() },
-    spinner: () => ({ start: vi.fn(), stop: vi.fn() }),
+    spinner: () => ({ start: vi.fn(), stop: vi.fn(), message: vi.fn() }),
     text: vi.fn().mockResolvedValue('https://blog.example.com'),
     password: vi.fn().mockResolvedValue('id-1234567890abcdef:secret-key-32-chars-here-aaa-bbb'),
     multiselect: vi.fn(),
@@ -21,11 +22,34 @@ vi.mock('@clack/prompts', async () => {
   };
 });
 
-beforeEach(() => { vi.restoreAllMocks(); });
+beforeEach(() => {
+  vi.restoreAllMocks();
+});
+
+// claude's readEntry reads ~/.claude.json via fs.readFileSync — stub it so the
+// wizard sees a specific user-scope registration (or none).
+function stubClaudeConfig(entry: { command: string; args: string[] } | null): void {
+  vi.spyOn(fs, 'readFileSync').mockReturnValue(
+    JSON.stringify(entry ? { mcpServers: { 'ghost-blog': entry } } : { mcpServers: {} })
+  );
+}
+
+// Only Claude Code is "installed"; codex/gemini --version fail. Non-version
+// calls (mcp add/remove) succeed.
+function onlyClaudeInstalled() {
+  return vi.spyOn(proc, 'run').mockImplementation(async (cli: string, args: string[]) => {
+    if (args[0] === '--version') {
+      return cli === 'claude'
+        ? { status: 0, stdout: '1', stderr: '' }
+        : { status: 127, stdout: '', stderr: '' };
+    }
+    return { status: 0, stdout: '', stderr: '' };
+  });
+}
 
 describe('setup wizard — discover → apply', () => {
   it('exits cleanly when no MCP CLI is detected', async () => {
-    vi.spyOn(proc, 'run').mockReturnValue({ status: 127, stdout: '', stderr: 'not found' });
+    vi.spyOn(proc, 'run').mockResolvedValue({ status: 127, stdout: '', stderr: 'not found' });
     const { runSetup } = await import('./setup.js');
     await expect(runSetup()).resolves.not.toThrow();
   });
@@ -34,12 +58,8 @@ describe('setup wizard — discover → apply', () => {
     const prompts = await import('@clack/prompts');
     (prompts.multiselect as ReturnType<typeof vi.fn>).mockResolvedValueOnce(['claude-code']);
 
-    const spy = vi.spyOn(proc, 'run').mockImplementation((cli: string, args: string[]) => {
-      if (args[0] === '--version') return cli === 'claude' ? { status: 0, stdout: '1', stderr: '' } : { status: 127, stdout: '', stderr: '' };
-      if (args[0] === 'mcp' && args[1] === 'list') return { status: 0, stdout: '', stderr: '' };  // empty → parseGet returns null → classify missing
-      if (args[0] === 'mcp' && args[1] === 'add') return { status: 0, stdout: '', stderr: '' };
-      return { status: 0, stdout: '', stderr: '' };
-    });
+    stubClaudeConfig(null); // ~/.claude.json has no ghost-blog → missing
+    const spy = onlyClaudeInstalled();
 
     const { runSetup } = await import('./setup.js');
     await runSetup();
@@ -54,20 +74,33 @@ describe('setup wizard — discover → apply', () => {
     const prompts = await import('@clack/prompts');
     (prompts.multiselect as ReturnType<typeof vi.fn>).mockResolvedValueOnce(['claude-code']);
 
-    // In-sync list output: command+args match canonical npx invocation
-    const inSyncList = `ghost-blog: npx -y @uppinote/ghost-mcp@latest - ✓ Connected\n`;
-
-    const spy = vi.spyOn(proc, 'run').mockImplementation((cli: string, args: string[]) => {
-      if (args[0] === '--version') return cli === 'claude' ? { status: 0, stdout: '1', stderr: '' } : { status: 127, stdout: '', stderr: '' };
-      if (args[0] === 'mcp' && args[1] === 'list') return { status: 0, stdout: inSyncList, stderr: '' };
-      if (args[0] === 'mcp' && args[1] === 'add') return { status: 0, stdout: '', stderr: '' };
-      return { status: 0, stdout: '', stderr: '' };
-    });
+    // user-scope entry already matches the canonical npx invocation → in-sync
+    stubClaudeConfig({ command: 'npx', args: ['-y', '@uppinote/ghost-mcp@latest'] });
+    const spy = onlyClaudeInstalled();
 
     const { runSetup } = await import('./setup.js');
     await runSetup();
 
     const addCall = spy.mock.calls.find(([c, a]) => c === 'claude' && a[0] === 'mcp' && a[1] === 'add');
     expect(addCall).toBeUndefined();
+  });
+
+  it('removes then adds for a stale client (the node → npx migration)', async () => {
+    const prompts = await import('@clack/prompts');
+    (prompts.multiselect as ReturnType<typeof vi.fn>).mockResolvedValueOnce(['claude-code']);
+
+    // user-scope entry is an old dev-clone node command → stale vs canonical npx
+    stubClaudeConfig({ command: 'node', args: ['/path/dist/index.js'] });
+    const spy = onlyClaudeInstalled();
+
+    const { runSetup } = await import('./setup.js');
+    await runSetup();
+
+    const claudeCalls = spy.mock.calls.filter(([c]) => c === 'claude').map(([, a]) => a);
+    const removeIdx = claudeCalls.findIndex((a) => a[0] === 'mcp' && a[1] === 'remove');
+    const addIdx = claudeCalls.findIndex((a) => a[0] === 'mcp' && a[1] === 'add');
+    expect(removeIdx).toBeGreaterThanOrEqual(0);
+    expect(addIdx).toBeGreaterThanOrEqual(0);
+    expect(removeIdx).toBeLessThan(addIdx); // remove happens before add
   });
 });

@@ -25,7 +25,12 @@ export interface McpClient {
   label: string;
   cli: string;
   addArgs(name: string, env: GhostEnv, cmd: string, cmdArgs: string[]): string[];
-  getArgs(name: string): string[];
   removeArgs(name: string): string[];
-  parseGet(stdout: string, name: string): RegisteredEntry | null;
+  // Read path — most adapters expose it via the CLI (getArgs + parseGet); gemini
+  // overrides with readEntry because `gemini mcp list` is TTY-gated (emits nothing
+  // when its stdout is captured) and has no --json flag, so it reads its config
+  // file directly instead.
+  getArgs?(name: string): string[];
+  parseGet?(stdout: string, name: string): RegisteredEntry | null;
+  readEntry?(name: string): RegisteredEntry | null;
 }

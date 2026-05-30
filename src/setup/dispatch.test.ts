@@ -25,40 +25,40 @@ beforeEach(() => {
 
 describe('dispatch', () => {
   describe('detect', () => {
-    it('returns true when CLI returns status 0', () => {
-      const spy = vi.spyOn(proc, 'run').mockReturnValue({
+    it('returns true when CLI returns status 0', async () => {
+      const spy = vi.spyOn(proc, 'run').mockResolvedValue({
         status: 0,
         stdout: '1.0.0',
         stderr: '',
       });
 
-      expect(detect(mockClient)).toBe(true);
+      expect(await detect(mockClient)).toBe(true);
       expect(spy).toHaveBeenCalledWith('fake-cli', ['--version']);
     });
 
-    it('returns false when CLI is missing (status null + error)', () => {
-      vi.spyOn(proc, 'run').mockReturnValue({
+    it('returns false when CLI is missing (status null + error)', async () => {
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: null,
         stdout: '',
         stderr: 'not found',
       });
 
-      expect(detect(mockClient)).toBe(false);
+      expect(await detect(mockClient)).toBe(false);
     });
 
-    it('returns false when CLI exits non-zero', () => {
-      vi.spyOn(proc, 'run').mockReturnValue({
+    it('returns false when CLI exits non-zero', async () => {
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: 1,
         stdout: '',
         stderr: 'error',
       });
 
-      expect(detect(mockClient)).toBe(false);
+      expect(await detect(mockClient)).toBe(false);
     });
   });
 
   describe('read', () => {
-    it('delegates to client.parseGet on successful status', () => {
+    it('delegates to client.parseGet on successful status', async () => {
       const stdout = 'test-content';
       const parseGetSpy = vi.spyOn(mockClient, 'parseGet').mockReturnValue({
         command: 'npx',
@@ -66,13 +66,13 @@ describe('dispatch', () => {
         env: {},
       });
 
-      vi.spyOn(proc, 'run').mockReturnValue({
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: 0,
         stdout,
         stderr: '',
       });
 
-      const result = read(mockClient);
+      const result = await read(mockClient);
 
       expect(result).toEqual({
         command: 'npx',
@@ -82,56 +82,77 @@ describe('dispatch', () => {
       expect(parseGetSpy).toHaveBeenCalledWith(stdout, SERVER_NAME);
     });
 
-    it('returns null when status non-zero and stdout empty', () => {
-      vi.spyOn(proc, 'run').mockReturnValue({
+    it('returns null when status non-zero and stdout empty', async () => {
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: 1,
         stdout: '',
         stderr: 'error',
       });
 
-      expect(read(mockClient)).toBeNull();
+      expect(await read(mockClient)).toBeNull();
     });
 
-    it('still calls parseGet when status non-zero but stdout non-empty', () => {
+    it('still calls parseGet when status non-zero but stdout non-empty', async () => {
       const stdout = 'error message with content';
       const parseGetSpy = vi.spyOn(mockClient, 'parseGet').mockReturnValue(null);
 
-      vi.spyOn(proc, 'run').mockReturnValue({
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: 1,
         stdout,
         stderr: 'error',
       });
 
-      read(mockClient);
+      await read(mockClient);
 
       expect(parseGetSpy).toHaveBeenCalledWith(stdout, SERVER_NAME);
     });
 
-    it('uses custom name when provided', () => {
+    it('uses custom name when provided', async () => {
       const getArgsSpy = vi.spyOn(mockClient, 'getArgs').mockReturnValue(['mcp', 'get', 'custom']);
 
-      vi.spyOn(proc, 'run').mockReturnValue({
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: 0,
         stdout: '',
         stderr: '',
       });
 
-      read(mockClient, 'custom');
+      await read(mockClient, 'custom');
 
       expect(getArgsSpy).toHaveBeenCalledWith('custom');
+    });
+
+    it('prefers client.readEntry over the CLI when present (gemini path)', async () => {
+      const runSpy = vi.spyOn(proc, 'run');
+      const fileClient: McpClient = {
+        ...mockClient,
+        readEntry: () => ({
+          command: 'npx',
+          args: ['-y', '@uppinote/ghost-mcp@latest'],
+          env: {},
+        }),
+      };
+
+      const result = await read(fileClient);
+
+      expect(result).toEqual({
+        command: 'npx',
+        args: ['-y', '@uppinote/ghost-mcp@latest'],
+        env: {},
+      });
+      expect(runSpy).not.toHaveBeenCalled();
     });
   });
 
   describe('write', () => {
-    it('calls run with cli, addArgs, and stdio inherit', () => {
+    it('calls run with cli, addArgs, and stdio inherit', async () => {
       const addArgsSpy = vi.spyOn(mockClient, 'addArgs').mockReturnValue(['mcp', 'add', 'ghost-blog', '--', 'npx', '-y', '@uppinote/ghost-mcp@latest']);
-      const runSpy = vi.spyOn(proc, 'run').mockReturnValue({
+      const runSpy = vi.spyOn(proc, 'run').mockResolvedValue({
         status: 0,
         stdout: '',
         stderr: '',
       });
 
-      write(mockClient, mockEnv);
+      await write(mockClient, mockEnv);
 
       expect(addArgsSpy).toHaveBeenCalledWith(SERVER_NAME, mockEnv, CANONICAL_CMD, CANONICAL_ARGS);
       expect(runSpy).toHaveBeenCalledWith(
@@ -141,44 +162,68 @@ describe('dispatch', () => {
       );
     });
 
-    it('throws on non-zero status with failing argv in message', () => {
+    it('throws on non-zero status with failing argv in message', async () => {
       const args = ['mcp', 'add', 'ghost-blog', '--', 'npx'];
       vi.spyOn(mockClient, 'addArgs').mockReturnValue(args);
-      vi.spyOn(proc, 'run').mockReturnValue({
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: 1,
         stdout: '',
         stderr: 'error',
       });
 
-      expect(() => write(mockClient, mockEnv)).toThrow(
+      await expect(write(mockClient, mockEnv)).rejects.toThrow(
         /fake-cli mcp add ghost-blog -- npx.*exited with status 1/
       );
     });
 
-    it('uses custom name when provided', () => {
+    it('uses custom name when provided', async () => {
       const addArgsSpy = vi.spyOn(mockClient, 'addArgs').mockReturnValue(['mcp', 'add', 'custom', '--', 'npx']);
-      vi.spyOn(proc, 'run').mockReturnValue({
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: 0,
         stdout: '',
         stderr: '',
       });
 
-      write(mockClient, mockEnv, 'custom');
+      await write(mockClient, mockEnv, 'custom');
 
       expect(addArgsSpy).toHaveBeenCalledWith('custom', mockEnv, CANONICAL_CMD, CANONICAL_ARGS);
+    });
+
+    it('removes before adding when replace is set', async () => {
+      vi.spyOn(mockClient, 'addArgs').mockReturnValue(['mcp', 'add', 'ghost-blog']);
+      vi.spyOn(mockClient, 'removeArgs').mockReturnValue(['mcp', 'remove', 'ghost-blog']);
+      const runSpy = vi.spyOn(proc, 'run').mockResolvedValue({ status: 0, stdout: '', stderr: '' });
+
+      await write(mockClient, mockEnv, SERVER_NAME, { replace: true });
+
+      const argvs = runSpy.mock.calls.map(([, a]) => a);
+      const removeIdx = argvs.findIndex((a) => a[0] === 'mcp' && a[1] === 'remove');
+      const addIdx = argvs.findIndex((a) => a[0] === 'mcp' && a[1] === 'add');
+      expect(removeIdx).toBeGreaterThanOrEqual(0);
+      expect(addIdx).toBeGreaterThan(removeIdx);
+    });
+
+    it('does not remove when replace is unset', async () => {
+      vi.spyOn(mockClient, 'addArgs').mockReturnValue(['mcp', 'add', 'ghost-blog']);
+      const removeArgsSpy = vi.spyOn(mockClient, 'removeArgs');
+      vi.spyOn(proc, 'run').mockResolvedValue({ status: 0, stdout: '', stderr: '' });
+
+      await write(mockClient, mockEnv);
+
+      expect(removeArgsSpy).not.toHaveBeenCalled();
     });
   });
 
   describe('remove', () => {
-    it('calls run with removeArgs and stdio inherit', () => {
+    it('calls run with removeArgs and stdio inherit', async () => {
       const removeArgsSpy = vi.spyOn(mockClient, 'removeArgs').mockReturnValue(['mcp', 'remove', 'ghost-blog']);
-      const runSpy = vi.spyOn(proc, 'run').mockReturnValue({
+      const runSpy = vi.spyOn(proc, 'run').mockResolvedValue({
         status: 0,
         stdout: '',
         stderr: '',
       });
 
-      remove(mockClient);
+      await remove(mockClient);
 
       expect(removeArgsSpy).toHaveBeenCalledWith(SERVER_NAME);
       expect(runSpy).toHaveBeenCalledWith(
@@ -188,29 +233,29 @@ describe('dispatch', () => {
       );
     });
 
-    it('throws on non-zero status with failing argv in message', () => {
+    it('throws on non-zero status with failing argv in message', async () => {
       const args = ['mcp', 'remove', 'ghost-blog'];
       vi.spyOn(mockClient, 'removeArgs').mockReturnValue(args);
-      vi.spyOn(proc, 'run').mockReturnValue({
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: 1,
         stdout: '',
         stderr: 'error',
       });
 
-      expect(() => remove(mockClient)).toThrow(
+      await expect(remove(mockClient)).rejects.toThrow(
         /fake-cli mcp remove ghost-blog.*exited with status 1/
       );
     });
 
-    it('uses custom name when provided', () => {
+    it('uses custom name when provided', async () => {
       const removeArgsSpy = vi.spyOn(mockClient, 'removeArgs').mockReturnValue(['mcp', 'remove', 'custom']);
-      vi.spyOn(proc, 'run').mockReturnValue({
+      vi.spyOn(proc, 'run').mockResolvedValue({
         status: 0,
         stdout: '',
         stderr: '',
       });
 
-      remove(mockClient, 'custom');
+      await remove(mockClient, 'custom');
 
       expect(removeArgsSpy).toHaveBeenCalledWith('custom');
     });

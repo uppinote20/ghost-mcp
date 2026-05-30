@@ -1,27 +1,27 @@
 /**
- * Gemini CLI MCP adapter — wraps `gemini mcp add/list/remove`.
+ * Gemini CLI MCP adapter — writes via `gemini mcp add/remove`, but reads
+ * registration state from `~/.gemini/settings.json` directly.
  *
  * Notes:
- * - Gemini has no `mcp get` subcommand, so getArgs delegates to `mcp list` and
- *   parseGet filters by name.
  * - `mcp add` requires `-s user` for global scope (default is 'project').
  *   removeArgs also passes `-s user` so we delete from the same scope add wrote
  *   to (otherwise Gemini falls back to the default `project` scope and fails).
  * - `mcp add` uses positional args (no `--` separator), unlike Claude Code / Codex.
- * - env is returned as `{}` to match the Claude Code and Codex adapter design.
  *
- * IMPORTANT — list output format is INFERRED, not live-verified.
- * Gemini CLI v0.38.0 (the version available at implementation time) produces
- * empty stdout for `gemini mcp list` even after `mcp add` has populated
- * `~/.gemini/settings.json`. The parser below assumes the Claude Code line
- * shape (`<name>: <cmd> [<args>] - <status>`); if the real format diverges,
- * `parseGet` returns null and the wizard classifies the server as `missing`,
- * which triggers a benign re-registration on the next setup run. Update the
- * fixture and parser the first time we see real output.
+ * READ is file-based, not CLI-based. `gemini mcp list` (verified on v0.38.0) is
+ * TTY-gated: it prints the server table only when stdout is a TTY and emits
+ * *nothing* (0 bytes) when stdout is captured — which is exactly how the wizard
+ * reads it (a captured pipe, not a TTY). There is no --json flag to force
+ * machine-readable output, so the CLI is unusable for reads. readEntry parses
+ * the user-scope settings file instead — the same file `gemini mcp add -s user`
+ * writes to. Writes still go through the CLI (`mcp add` is not TTY-gated).
  *
  * @handbook 2.5-client-adapters
  * @tested src/setup/clients/gemini.test.ts
  */
+import os from 'node:os';
+import path from 'node:path';
+import { readFromJsonConfig } from './json-config.js';
 import { McpClient, RegisteredEntry, GhostEnv } from '../types.js';
 
 export const gemini: McpClient = {
@@ -50,37 +50,13 @@ export const gemini: McpClient = {
     ];
   },
 
-  // Delegates to `mcp list` and then filters by name in parseGet.
-  // Gemini has no `mcp get` subcommand.
-  getArgs(_name: string): string[] {
-    return ['mcp', 'list'];
-  },
-
   removeArgs(name: string): string[] {
     return ['mcp', 'remove', '-s', 'user', name];
   },
 
-  parseGet(stdout: string, name: string): RegisteredEntry | null {
-    if (!stdout) return null;
-
-    // `mcp list` line shape (stdio):
-    //   <name>: <command> [<arg> ...] - <status emoji + text>
-    // We escape the name for regex safety and look for the target line.
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const linePattern = new RegExp(`^${escaped}:\\s+(.+?)\\s+-\\s+`, 'm');
-
-    const match = stdout.match(linePattern);
-    if (!match) return null;
-
-    const cmdAndArgs = match[1].trim();
-    const tokens = cmdAndArgs.split(/\s+/);
-    const command = tokens[0];
-    if (!command) return null;
-    const args = tokens.slice(1);
-
-    // env is intentionally empty — Gemini masks it. classify treats an
-    // empty registered env as "in-sync on env" so the wizard still detects
-    // command/args drift.
-    return { command, args, env: {} };
+  // Reads ~/.gemini/settings.json — see the file header for why `gemini mcp list`
+  // is unusable (TTY-gated when captured).
+  readEntry(name: string): RegisteredEntry | null {
+    return readFromJsonConfig(path.join(os.homedir(), '.gemini', 'settings.json'), name);
   },
 };

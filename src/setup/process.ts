@@ -1,13 +1,16 @@
 /**
- * Thin wrapper around Node's spawnSync for testability.
+ * Thin async wrapper around Node's child_process.spawn, for testability and to
+ * keep the event loop free.
  *
- * Tests stub this module via vi.spyOn(proc, 'run') to unit-test dispatch logic
- * without launching real processes.
+ * Async (not spawnSync) on purpose: the wizard's scan shows a live spinner while
+ * each CLI probe runs, and a synchronous spawn would block the event loop and
+ * freeze the animation. Tests stub this module via vi.spyOn(proc, 'run') to
+ * unit-test dispatch logic without launching real processes.
  *
  * @handbook 2.5-client-adapters
  * @tested src/setup/process.test.ts
  */
-import { spawnSync, SpawnSyncOptions } from 'node:child_process';
+import { spawn, SpawnOptions } from 'node:child_process';
 
 export type RunResult = {
   status: number | null;
@@ -17,40 +20,43 @@ export type RunResult = {
 };
 
 /**
- * Run a command synchronously and capture its output.
+ * Run a command and capture its output.
  *
  * @param cli Command to run (e.g., "node", "gh")
  * @param args Command arguments
- * @param options Optional spawnSync options; defaults to UTF-8 encoding
- * @returns Object with status, stdout, stderr, and optional error
+ * @param options Optional spawn options; default stdio is 'pipe' so stdout/stderr
+ *   are captured. With stdio: 'inherit' (writes) nothing is piped, so stdout/stderr
+ *   come back empty and only `status` is meaningful.
+ * @returns Promise of { status, stdout, stderr, and optional error }
  */
 export function run(
   cli: string,
   args: string[],
-  options?: SpawnSyncOptions
-): RunResult {
-  const mergedOptions: SpawnSyncOptions = {
-    encoding: 'utf-8',
-    ...options,
-  };
+  options?: SpawnOptions
+): Promise<RunResult> {
+  return new Promise((resolve) => {
+    const child = spawn(cli, args, options ?? {});
 
-  const result = spawnSync(cli, args, mergedOptions);
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.setEncoding('utf-8');
+    child.stderr?.setEncoding('utf-8');
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk;
+    });
 
-  // spawnSync sets `error` when the command could not be spawned (ENOENT etc).
-  // It does not throw, so an outer try/catch would be dead defensive code.
-  if (result.error) {
-    return {
-      status: null,
-      stdout: '',
-      stderr: '',
-      error: result.error,
-    };
-  }
+    // 'error' fires when the command could not be spawned (ENOENT etc.).
+    child.on('error', (error) => {
+      resolve({ status: null, stdout: '', stderr: '', error });
+    });
 
-  return {
+    // 'close' fires once the process has exited and its stdio is flushed.
     // status is null on signal termination — preserve that, don't coerce to 0.
-    status: result.status,
-    stdout: typeof result.stdout === 'string' ? result.stdout : '',
-    stderr: typeof result.stderr === 'string' ? result.stderr : '',
-  };
+    child.on('close', (status) => {
+      resolve({ status, stdout, stderr });
+    });
+  });
 }

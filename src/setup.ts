@@ -18,7 +18,6 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { spawnSync } from 'child_process';
 import {
   intro,
   outro,
@@ -30,9 +29,11 @@ import {
   cancel,
   isCancel,
   log,
+  spinner,
 } from '@clack/prompts';
 import { checkGhostUrl, checkGhostKey } from './validation.js';
 import { ALL_CLIENTS } from './setup/clients/index.js';
+import { run } from './setup/process.js';
 import { detect, read, write, SERVER_NAME } from './setup/dispatch.js';
 import { classify, resolveCanonical } from './setup/classify.js';
 import { McpClient, ClientState, GhostEnv } from './setup/types.js';
@@ -45,15 +46,20 @@ const REPO_URL = `https://github.com/${REPO}`;
 const HOME = os.homedir();
 const STAR_MARKER = path.join(HOME, '.config', 'ghost-mcp', '.star-prompted');
 
+// Calm line spinner (| / - \) at a relaxed cadence, instead of clack's default
+// fast ◒◐◓◑ rotation which reads as busy.
+const SPINNER_FRAMES = ['|', '/', '-', '\\'];
+const SPINNER_DELAY = 180;
+
 type ScanRow = { client: McpClient; state: ClientState };
 
-function scan(): ScanRow[] {
-  const detected = ALL_CLIENTS.filter(detect);
+// Probe one client. Returns null if its CLI is not installed, otherwise the
+// current registration state (classified against a stub env — adapters mask env,
+// so only command/args drift matters until the user supplies the canonical env).
+async function probe(client: McpClient): Promise<ClientState | null> {
+  if (!(await detect(client))) return null;
   const stub: GhostEnv = { GHOST_URL: '', GHOST_ADMIN_API_KEY: '' };
-  return detected.map((client) => ({
-    client,
-    state: classify(stub, read(client)),
-  }));
+  return classify(stub, await read(client));
 }
 
 function reclassify(rows: ScanRow[], canonical: GhostEnv): ScanRow[] {
@@ -79,13 +85,6 @@ function summary(state: ClientState): string {
   }
 }
 
-function renderRows(rows: ScanRow[]): void {
-  const lines = rows.map(({ client, state }) =>
-    `  ${symbol(state)}  ${client.label.padEnd(14)}  ${summary(state)}`
-  );
-  note(lines.join('\n'), 'MCP clients');
-}
-
 function bail(msg: string): never {
   cancel(msg);
   process.exit(0);
@@ -96,14 +95,12 @@ function check<T>(value: T | symbol): T {
   return value as T;
 }
 
-function ghAvailable(): boolean {
-  const r = spawnSync('gh', ['--version'], { stdio: 'ignore' });
-  return r.status === 0;
+async function ghAvailable(): Promise<boolean> {
+  return (await run('gh', ['--version'], { stdio: 'ignore' })).status === 0;
 }
 
-function ghAuthed(): boolean {
-  const r = spawnSync('gh', ['auth', 'status'], { stdio: 'ignore' });
-  return r.status === 0;
+async function ghAuthed(): Promise<boolean> {
+  return (await run('gh', ['auth', 'status'], { stdio: 'ignore' })).status === 0;
 }
 
 function markStarPrompted(): void {
@@ -115,12 +112,12 @@ function markStarPrompted(): void {
   }
 }
 
-function tryStar(): void {
-  if (!ghAvailable()) {
+async function tryStar(): Promise<void> {
+  if (!(await ghAvailable())) {
     log.info(`\`gh\` CLI not found. Star manually at:\n  ${REPO_URL}`);
     return;
   }
-  if (!ghAuthed()) {
+  if (!(await ghAuthed())) {
     log.info(
       `\`gh\` not authenticated. Run \`gh auth login\` then star at:\n  ${REPO_URL}`
     );
@@ -129,7 +126,7 @@ function tryStar(): void {
 
   // `gh repo star` subcommand does not exist. Use the REST API directly:
   // PUT /user/starred/{owner}/{repo}.
-  const r = spawnSync(
+  const r = await run(
     'gh',
     ['api', '--method', 'PUT', '--silent', `/user/starred/${REPO}`],
     { stdio: ['ignore', 'ignore', 'ignore'] }
@@ -150,7 +147,7 @@ interface StarFlags {
 async function offerStar(flags: StarFlags): Promise<void> {
   // --star: explicit opt-in, no prompt (dotfiles / CI consent)
   if (flags.star) {
-    tryStar();
+    await tryStar();
     markStarPrompted();
     return;
   }
@@ -189,8 +186,26 @@ export async function runSetup(): Promise<void> {
   // 1. Intro
   intro('ghost-mcp setup');
 
-  // 2. SCAN — detect all installed MCP CLIs and their current registration state
-  const rows = scan();
+  // 2. SCAN — probe each supported client one at a time, reporting progress.
+  // Each probe is an async CLI spawn (claude --version, mcp list, …), so a
+  // per-client spinner gives a live "checking X… → result" trail instead of a
+  // silent pause. Not-installed clients are shown too, then dropped from `rows`.
+  const rows: ScanRow[] = [];
+  const total = ALL_CLIENTS.length;
+  for (let i = 0; i < total; i++) {
+    const client = ALL_CLIENTS[i];
+    const s = spinner({ frames: SPINNER_FRAMES, delay: SPINNER_DELAY });
+    s.start(`[${i + 1}/${total}] Checking ${client.label}…`);
+    // await yields the event loop while the CLI probe runs, so the spinner
+    // actually animates instead of freezing (the whole point of going async).
+    const state = await probe(client);
+    if (state === null) {
+      s.stop(`—  ${client.label}: not installed`);
+      continue;
+    }
+    rows.push({ client, state });
+    s.stop(`${symbol(state)}  ${client.label}: ${summary(state)}`);
+  }
 
   if (rows.length === 0) {
     note(
@@ -200,8 +215,6 @@ export async function runSetup(): Promise<void> {
     outro('No changes made.');
     return;
   }
-
-  renderRows(rows);
 
   // 3. RESOLVE CANONICAL (initial) — from any in-sync entries
   const inSyncEnvs = rows
@@ -276,7 +289,7 @@ export async function runSetup(): Promise<void> {
 
   const selected = check(
     await multiselect({
-      message: 'Apply to',
+      message: 'Apply to (space to toggle, enter to confirm)',
       options,
       initialValues: options.map((o) => o.value),
       required: false,
@@ -297,7 +310,9 @@ export async function runSetup(): Promise<void> {
       continue;
     }
     try {
-      write(client, canonical, SERVER_NAME);
+      // Stale entries pass replace=true so write removes the differing entry
+      // before re-adding (most CLIs' `mcp add` refuses to overwrite).
+      await write(client, canonical, SERVER_NAME, { replace: state.kind === 'stale' });
       applied++;
     } catch (e) {
       failures.push({ client, error: e });

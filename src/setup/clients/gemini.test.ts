@@ -1,18 +1,9 @@
 /** @covers src/setup/clients/gemini.ts */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import fs from 'node:fs';
 import { gemini } from './gemini.js';
 
-// IMPORTANT — fixture is INFERRED-shape (Claude Code-style
-// `<name>: <cmd> - <status>`), NOT captured from a real `gemini mcp list`.
-// Live attempts on Gemini CLI v0.38.0 produced empty stdout even after
-// `mcp add`, so we cannot lock the real format yet. Tests below confirm the
-// parser works against the inferred shape (the contract); the first time a
-// real output is observed, update this fixture and re-run the suite.
-const LIST_FIXTURE = `Registered MCP Servers:
-
-ghost-blog: npx -y @uppinote/ghost-mcp@latest - ✓ Connected
-context7: npx -y @upstash/context7-mcp - ✓ Connected
-`;
+afterEach(() => vi.restoreAllMocks());
 
 describe('gemini adapter', () => {
   describe('addArgs', () => {
@@ -25,61 +16,40 @@ describe('gemini adapter', () => {
       );
 
       expect(result).toEqual([
-        'mcp',
-        'add',
-        '-s',
-        'user',
-        '-e',
-        'GHOST_URL=https://blog.example.com',
-        '-e',
-        'GHOST_ADMIN_API_KEY=id:secret',
+        'mcp', 'add',
+        '-s', 'user',
+        '-e', 'GHOST_URL=https://blog.example.com',
+        '-e', 'GHOST_ADMIN_API_KEY=id:secret',
         'ghost-blog',
-        'npx',
-        '-y',
-        '@uppinote/ghost-mcp@latest',
+        'npx', '-y', '@uppinote/ghost-mcp@latest',
       ]);
-    });
-  });
-
-  describe('getArgs', () => {
-    it('delegates to mcp list because Gemini has no mcp get subcommand', () => {
-      expect(gemini.getArgs('ghost-blog')).toEqual(['mcp', 'list']);
     });
   });
 
   describe('removeArgs', () => {
     it('uses explicit -s user scope to match the scope used in add', () => {
       expect(gemini.removeArgs('ghost-blog')).toEqual([
-        'mcp',
-        'remove',
-        '-s',
-        'user',
-        'ghost-blog',
+        'mcp', 'remove', '-s', 'user', 'ghost-blog',
       ]);
     });
   });
 
-  describe('parseGet', () => {
-    it('extracts command and args for the target name from list output', () => {
-      const result = gemini.parseGet(LIST_FIXTURE, 'ghost-blog');
-      expect(result).toEqual({
+  // Edge cases (missing/malformed/absent) live in json-config.test.ts; here we
+  // just confirm gemini wires the right settings-file path.
+  describe('readEntry', () => {
+    it('reads ~/.gemini/settings.json for the target server', () => {
+      const spy = vi.spyOn(fs, 'readFileSync').mockReturnValue(
+        JSON.stringify({
+          mcpServers: { 'ghost-blog': { command: 'npx', args: ['-y', '@uppinote/ghost-mcp@latest'] } },
+        })
+      );
+
+      expect(gemini.readEntry!('ghost-blog')).toEqual({
         command: 'npx',
         args: ['-y', '@uppinote/ghost-mcp@latest'],
         env: {},
       });
-    });
-
-    it('always leaves env empty because Gemini masks env in list output', () => {
-      const result = gemini.parseGet(LIST_FIXTURE, 'ghost-blog');
-      expect(result?.env).toEqual({});
-    });
-
-    it('returns null when the target name is absent from the list', () => {
-      expect(gemini.parseGet(LIST_FIXTURE, 'not-registered')).toBeNull();
-    });
-
-    it('returns null for empty stdout', () => {
-      expect(gemini.parseGet('', 'ghost-blog')).toBeNull();
+      expect(String(spy.mock.calls[0]?.[0])).toMatch(/\.gemini[/\\]settings\.json$/);
     });
   });
 });

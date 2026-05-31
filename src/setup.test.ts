@@ -107,4 +107,31 @@ describe('setup wizard — discover → apply', () => {
     expect(addIdx).toBeGreaterThanOrEqual(0);
     expect(removeIdx).toBeLessThan(addIdx); // remove happens before add
   });
+
+  it('reports failure and omits the failed client from the restart list', async () => {
+    const prompts = await import('@clack/prompts');
+    (prompts.multiselect as ReturnType<typeof vi.fn>).mockResolvedValueOnce(['claude-code']);
+
+    stubClaudeConfig(null); // missing → wizard attempts write
+    // claude installed, but `mcp add` fails (e.g. permission denied)
+    vi.spyOn(proc, 'run').mockImplementation(async (cli: string, args: string[]) => {
+      if (args[0] === '--version') {
+        return cli === 'claude'
+          ? { status: 0, stdout: '1', stderr: '' }
+          : { status: 127, stdout: '', stderr: '' };
+      }
+      if (args[0] === 'mcp' && args[1] === 'add') {
+        return { status: 1, stdout: '', stderr: 'permission denied' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    });
+
+    const { runSetup } = await import('./setup.js');
+    await expect(runSetup()).resolves.not.toThrow();
+
+    const { outro } = await import('@clack/prompts');
+    const outroArg = (outro as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] ?? '';
+    // failed client must not be told to restart
+    expect(outroArg).not.toMatch(/Claude Code/);
+  });
 });

@@ -332,16 +332,12 @@ export async function runSetup(): Promise<void> {
   await offerStar({ yes: flagYes, star: flagStar, forceStarPrompt: flagForceStarPrompt });
 
   // 10. Outro with restart list
-  // Exclude clients whose write() failed — they were not actually updated, so
-  // telling the user to restart them would be misleading.
+  // Every selected client that was successfully (re)written needs a restart —
+  // including in-sync ones, which are now re-applied for credential rotation.
+  // Exclude only clients whose write() failed (not actually updated).
   const failedIds = new Set(failures.map((f) => f.client.id));
   const restartClients = finalRows
-    .filter(
-      (r) =>
-        selectedIds.has(r.client.id) &&
-        r.state.kind !== 'in-sync' &&
-        !failedIds.has(r.client.id)
-    )
+    .filter((r) => selectedIds.has(r.client.id) && !failedIds.has(r.client.id))
     .map((r) => r.client.label);
 
   if (restartClients.length > 0) {

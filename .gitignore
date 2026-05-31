@@ -7,6 +7,7 @@ dist/
 *.js.map
 *.d.ts.map
 
-# Maintainer-private engineering handbook (kept in ~/.private-docs).
-# The @handbook markers in source remain public; only the handbook body is private.
-docs/ENGINEERING_HANDBOOK.md
+# Maintainer-local docs working dir: engineering handbook symlink (in
+# ~/.private-docs) + superpowers planning artifacts (plans/, specs/). The
+# @handbook markers in source stay public; only the docs/ bodies are local.
+docs/

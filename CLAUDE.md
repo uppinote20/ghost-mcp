@@ -14,7 +14,12 @@ npm test
 
 - `src/cli.ts` - CLI entrypoint (args에 따라 `setup` | server 분기, npm bin)
 - `src/index.ts` - legacy server entry (v1.0.x/1.1.x 사용자 backward compat)
-- `src/setup.ts` - interactive setup wizard (Ghost URL/key 입력 → editor 등록 → npx 형태)
+- `src/setup.ts` - interactive setup wizard (discover → classify → multi-select → apply via each CLI's `mcp add`)
+- `src/setup/types.ts` - McpClient interface + GhostEnv + RegisteredEntry + ClientState 공유 타입
+- `src/setup/process.ts` - async spawn wrapper (스캔 spinner 애니메이션용; vi.spyOn 테스트 DI point)
+- `src/setup/dispatch.ts` - detect / read / write / remove + SERVER_NAME/CANONICAL_CMD/CANONICAL_ARGS 상수
+- `src/setup/classify.ts` - 상태 분류 (in-sync/stale/missing) + canonical 값 resolution
+- `src/setup/clients/` - 클라이언트별 adapter (claude-code, codex, gemini) + `json-config.ts` 공용 reader. 쓰기는 `mcp add` CLI, 읽기는 codex만 CLI이고 claude/gemini는 설정 파일 직접
 - `src/server.ts` - MCP server 인스턴스화 + 도구 등록
 - `src/config.ts` - 환경변수 로딩 + HTTPS/API 키 검증
 - `src/validation.ts` - 입력값 검증 (ghostId, safeSlug, path traversal 방지)
@@ -58,7 +63,7 @@ npm (package-lock.json)
 | 찾는 것 | HANDBOOK 섹션 |
 |---------|---------------|
 | 모듈 의존 방향 | 1.2 |
-| MCP 부트스트랩 / Server Instructions / Setup wizard | 2 |
+| MCP 부트스트랩 / Server Instructions / Setup wizard / Multi-client adapter system | 2 |
 | JWT 토큰 / 에러 정규화 / Lazy-include | 3 |
 | Post/Page 타입 분리 | 4 |
 | Zod schema + 표 출력 / Optimistic locking / Empty-input guard | 5 |

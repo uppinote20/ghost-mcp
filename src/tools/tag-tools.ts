@@ -86,7 +86,7 @@ export function registerTagTools(server: McpServer, ghost: GhostAdminApi) {
 
   server.tool(
     'ghost_update_tag',
-    'Update an existing Ghost tag (name, slug, and/or description), identified by ID or current slug',
+    'Update an existing Ghost tag (name, slug, description, and/or visibility), identified by ID or current slug',
     {
       id: ghostId.optional().describe('Tag ID to update'),
       slug: safeSlug
@@ -95,8 +95,14 @@ export function registerTagTools(server: McpServer, ghost: GhostAdminApi) {
       name: z.string().optional().describe('New tag name'),
       new_slug: safeSlug.optional().describe('New tag slug'),
       description: z.string().optional().describe('New tag description'),
+      visibility: z
+        .enum(['public', 'internal'])
+        .optional()
+        .describe(
+          'Tag visibility. "internal" hides it from public tag pages/search (Ghost\'s "#" convention). Ghost stores this separately from the name, so set it explicitly when converting an internal tag to public (or vice versa) — renaming alone will not change it.'
+        ),
     },
-    async ({ id, slug, name, new_slug, description }) => {
+    async ({ id, slug, name, new_slug, description, visibility }) => {
       if (!id && !slug) {
         return {
           content: [
@@ -106,7 +112,7 @@ export function registerTagTools(server: McpServer, ghost: GhostAdminApi) {
         };
       }
 
-      const hasAnyField = [name, new_slug, description].some(
+      const hasAnyField = [name, new_slug, description, visibility].some(
         (v) => v !== undefined
       );
       if (!hasAnyField) {
@@ -114,7 +120,7 @@ export function registerTagTools(server: McpServer, ghost: GhostAdminApi) {
           content: [
             {
               type: 'text' as const,
-              text: 'No fields provided to update (name, new_slug, or description).',
+              text: 'No fields provided to update (name, new_slug, description, or visibility).',
             },
           ],
           isError: true,
@@ -140,12 +146,29 @@ export function registerTagTools(server: McpServer, ghost: GhostAdminApi) {
         };
       }
 
-      const tag = await ghost.updateTag(found.id, {
+      // Display fields and visibility are sent as separate PUTs: Ghost drops
+      // visibility when it arrives alongside other fields (same quirk as posts —
+      // see ghost_update_post / handbook 5.2). Each PUT carries the latest
+      // updated_at for optimistic locking.
+      const displayFields = {
         ...(name !== undefined && { name }),
         ...(new_slug !== undefined && { slug: new_slug }),
         ...(description !== undefined && { description }),
-        updated_at: found.updated_at,
-      });
+      };
+
+      let tag = found;
+      if (Object.keys(displayFields).length > 0) {
+        tag = await ghost.updateTag(found.id, {
+          ...displayFields,
+          updated_at: found.updated_at,
+        });
+      }
+      if (visibility !== undefined) {
+        tag = await ghost.updateTag(found.id, {
+          visibility,
+          updated_at: tag.updated_at,
+        });
+      }
       audit('update_tag', { id: found.id, name: tag.name, slug: tag.slug });
 
       return {
@@ -160,6 +183,8 @@ export function registerTagTools(server: McpServer, ghost: GhostAdminApi) {
               `| ID | ${tag.id} |`,
               `| Name | ${tag.name} |`,
               `| Slug | ${tag.slug} |`,
+              `| Description | ${tag.description || '(none)'} |`,
+              `| Visibility | ${tag.visibility || 'public'} |`,
             ].join('\n'),
           },
         ],

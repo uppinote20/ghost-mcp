@@ -143,7 +143,7 @@ npm test
 | `ghost_update_page` | Update page content and metadata |
 | `ghost_list_tags` | List all tags with post counts |
 | `ghost_create_tag` | Create a new tag |
-| `ghost_update_tag` | Update a tag's name, slug, or description by ID or slug |
+| `ghost_update_tag` | Update a tag's name, slug, description, or visibility by ID or slug |
 | `ghost_delete_tag` | Delete a tag by ID or slug |
 | `ghost_analyze_tags` | Find unused, low-use, and similar tags |
 | `ghost_push_local` | Push a local markdown file to Ghost as a draft |

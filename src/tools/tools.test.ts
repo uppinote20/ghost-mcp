@@ -64,6 +64,7 @@ function createMockGhost(overrides: Partial<{
     name: 'Tech',
     slug: 'tech',
     description: 'Technology posts',
+    visibility: 'public' as const,
     updated_at: '2026-01-01T00:00:00.000Z',
     count: { posts: 5 },
   };
@@ -331,6 +332,58 @@ describe('ghost_update_tag (MCP integration)', () => {
     expect(ghost.updateTag).toHaveBeenCalledWith(
       '607f1f77bcf86cd799439022',
       expect.objectContaining({ description: 'Updated description' })
+    );
+  });
+
+  it('sends visibility as its own PUT when no display fields change', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: { id: '607f1f77bcf86cd799439022', visibility: 'public' },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(ghost.updateTag).toHaveBeenCalledTimes(1);
+    expect(ghost.updateTag).toHaveBeenCalledWith(
+      '607f1f77bcf86cd799439022',
+      expect.objectContaining({
+        visibility: 'public',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      })
+    );
+  });
+
+  it('splits display fields and visibility into two separate PUTs', async () => {
+    vi.clearAllMocks();
+    await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: {
+        id: '607f1f77bcf86cd799439022',
+        name: 'Renamed',
+        visibility: 'internal',
+      },
+    });
+    expect(ghost.updateTag).toHaveBeenCalledTimes(2);
+    // 1st PUT: display fields only (no visibility — Ghost would drop it)
+    expect(ghost.updateTag).toHaveBeenNthCalledWith(
+      1,
+      '607f1f77bcf86cd799439022',
+      expect.objectContaining({ name: 'Renamed' })
+    );
+    expect(ghost.updateTag).toHaveBeenNthCalledWith(
+      1,
+      '607f1f77bcf86cd799439022',
+      expect.not.objectContaining({ visibility: expect.anything() })
+    );
+    // 2nd PUT: visibility only
+    expect(ghost.updateTag).toHaveBeenNthCalledWith(
+      2,
+      '607f1f77bcf86cd799439022',
+      expect.objectContaining({ visibility: 'internal' })
+    );
+    expect(ghost.updateTag).toHaveBeenNthCalledWith(
+      2,
+      '607f1f77bcf86cd799439022',
+      expect.not.objectContaining({ name: expect.anything() })
     );
   });
 

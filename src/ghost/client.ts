@@ -269,7 +269,13 @@ export class GhostAdminApi {
 
   async updateTag(
     id: string,
-    data: { name?: string; slug?: string; description?: string; updated_at?: string }
+    data: {
+      name?: string;
+      slug?: string;
+      description?: string;
+      visibility?: 'public' | 'internal';
+      updated_at?: string;
+    }
   ): Promise<GhostTag> {
     const response = await this.request<{ tags: GhostTag[] }>(`tags/${id}/`, {
       method: 'PUT',

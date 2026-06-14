@@ -169,7 +169,12 @@ export function registerTagTools(server: McpServer, ghost: GhostAdminApi) {
           updated_at: tag.updated_at,
         });
       }
-      audit('update_tag', { id: found.id, name: tag.name, slug: tag.slug });
+      audit('update_tag', {
+        id: found.id,
+        name: tag.name,
+        slug: tag.slug,
+        visibility: tag.visibility,
+      });
 
       return {
         content: [

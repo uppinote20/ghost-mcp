@@ -145,6 +145,44 @@ describe('GhostAdminApi', () => {
     });
   });
 
+  // ── Tag update ──
+
+  describe('updateTag', () => {
+    it('PUTs to tags/{id}/ with a tags-wrapped body and returns the updated tag', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            tags: [
+              { id: 'tagid', name: 'Renamed', slug: 'renamed', description: null },
+            ],
+          }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await api.updateTag('tagid', {
+        name: 'Renamed',
+        slug: 'renamed',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      });
+
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/ghost/api/admin/tags/tagid/');
+      expect(init.method).toBe('PUT');
+      expect(JSON.parse(init.body as string)).toEqual({
+        tags: [
+          {
+            name: 'Renamed',
+            slug: 'renamed',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      });
+      expect(result.slug).toBe('renamed');
+    });
+  });
+
   // ── Upload restrictions (uses real temp files to avoid ESM mock issues) ──
 
   describe('uploadImage', () => {

@@ -267,6 +267,23 @@ export class GhostAdminApi {
     return response.tags[0];
   }
 
+  async updateTag(
+    id: string,
+    data: {
+      name?: string;
+      slug?: string;
+      description?: string;
+      visibility?: 'public' | 'internal';
+      updated_at?: string;
+    }
+  ): Promise<GhostTag> {
+    const response = await this.request<{ tags: GhostTag[] }>(`tags/${id}/`, {
+      method: 'PUT',
+      body: JSON.stringify({ tags: [data] }),
+    });
+    return response.tags[0];
+  }
+
   async deleteTag(id: string): Promise<void> {
     await this.request(`tags/${id}/`, { method: 'DELETE' });
   }

@@ -64,6 +64,8 @@ function createMockGhost(overrides: Partial<{
     name: 'Tech',
     slug: 'tech',
     description: 'Technology posts',
+    visibility: 'public' as const,
+    updated_at: '2026-01-01T00:00:00.000Z',
     count: { posts: 5 },
   };
 
@@ -80,6 +82,7 @@ function createMockGhost(overrides: Partial<{
     updatePage: vi.fn().mockResolvedValue(mockPost),
     getTags: vi.fn().mockResolvedValue({ tags: [mockTag], pagination: undefined }),
     createTag: vi.fn().mockResolvedValue(mockTag),
+    updateTag: vi.fn().mockResolvedValue(mockTag),
     deleteTag: vi.fn().mockResolvedValue(undefined),
     getNewsletters: vi.fn().mockResolvedValue([]),
     uploadImage: vi.fn().mockResolvedValue('https://cdn.example.com/image.png'),
@@ -278,6 +281,156 @@ describe('Tag Tools (MCP integration)', () => {
       arguments: { slug: '../../evil', confirm: true },
     });
     expect(result.isError).toBe(true);
+  });
+});
+
+// ── Tag Tools — ghost_update_tag ─────────────────
+
+describe('ghost_update_tag (MCP integration)', () => {
+  let client: Client;
+  let ghost: GhostAdminApi;
+
+  beforeAll(async () => {
+    ghost = createMockGhost();
+    ({ client } = await setupMcpClient(ghost));
+  });
+
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it('updates a tag by id, forwarding fields + updated_at for optimistic locking', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: {
+        id: '607f1f77bcf86cd799439022',
+        name: 'Technology',
+        new_slug: 'technology',
+      },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(ghost.updateTag).toHaveBeenCalledWith(
+      '607f1f77bcf86cd799439022',
+      expect.objectContaining({
+        name: 'Technology',
+        slug: 'technology',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      })
+    );
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('Tag updated');
+  });
+
+  it('resolves the tag id from the current slug before updating', async () => {
+    vi.clearAllMocks();
+    await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: { slug: 'tech', description: 'Updated description' },
+    });
+    expect(ghost.getTags).toHaveBeenCalled();
+    expect(ghost.updateTag).toHaveBeenCalledWith(
+      '607f1f77bcf86cd799439022',
+      expect.objectContaining({ description: 'Updated description' })
+    );
+  });
+
+  it('sends visibility as its own PUT when no display fields change', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: { id: '607f1f77bcf86cd799439022', visibility: 'public' },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(ghost.updateTag).toHaveBeenCalledTimes(1);
+    expect(ghost.updateTag).toHaveBeenCalledWith(
+      '607f1f77bcf86cd799439022',
+      expect.objectContaining({
+        visibility: 'public',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      })
+    );
+  });
+
+  it('splits display fields and visibility into two separate PUTs', async () => {
+    vi.clearAllMocks();
+    await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: {
+        id: '607f1f77bcf86cd799439022',
+        name: 'Renamed',
+        visibility: 'internal',
+      },
+    });
+    expect(ghost.updateTag).toHaveBeenCalledTimes(2);
+    // 1st PUT: display fields only (no visibility — Ghost would drop it)
+    expect(ghost.updateTag).toHaveBeenNthCalledWith(
+      1,
+      '607f1f77bcf86cd799439022',
+      expect.objectContaining({ name: 'Renamed' })
+    );
+    expect(ghost.updateTag).toHaveBeenNthCalledWith(
+      1,
+      '607f1f77bcf86cd799439022',
+      expect.not.objectContaining({ visibility: expect.anything() })
+    );
+    // 2nd PUT: visibility only
+    expect(ghost.updateTag).toHaveBeenNthCalledWith(
+      2,
+      '607f1f77bcf86cd799439022',
+      expect.objectContaining({ visibility: 'internal' })
+    );
+    expect(ghost.updateTag).toHaveBeenNthCalledWith(
+      2,
+      '607f1f77bcf86cd799439022',
+      expect.not.objectContaining({ name: expect.anything() })
+    );
+  });
+
+  it('returns error when neither id nor slug is provided', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: { name: 'Orphan' },
+    });
+    expect(result.isError).toBe(true);
+    expect(ghost.updateTag).not.toHaveBeenCalled();
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('Either id or slug');
+  });
+
+  it('returns error when no change fields are provided', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: { id: '607f1f77bcf86cd799439022' },
+    });
+    expect(result.isError).toBe(true);
+    expect(ghost.updateTag).not.toHaveBeenCalled();
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('No fields provided');
+  });
+
+  it('returns error when the slug lookup finds no tag', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: { slug: 'does-not-exist', name: 'X' },
+    });
+    expect(result.isError).toBe(true);
+    expect(ghost.updateTag).not.toHaveBeenCalled();
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('not found');
+  });
+
+  it('rejects an invalid id format (zod ghostId)', async () => {
+    vi.clearAllMocks();
+    const result = await client.callTool({
+      name: 'ghost_update_tag',
+      arguments: { id: '../traversal', name: 'X' },
+    });
+    expect(result.isError).toBe(true);
+    expect(ghost.updateTag).not.toHaveBeenCalled();
   });
 });
 

@@ -45,6 +45,8 @@ export interface GhostTag {
   name: string;
   slug: string;
   description: string | null;
+  visibility?: 'public' | 'internal';
+  updated_at?: string;
   count?: { posts: number };
 }
 

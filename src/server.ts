@@ -39,6 +39,7 @@ Tool-selection guidance:
 - To publish-and-email, call \`ghost_list_newsletters\` for the slug, then pass \`newsletter\` + \`status: published\` to \`ghost_update_post\`.
 - \`ghost_delete_post\` / \`ghost_delete_tag\` require \`confirm: true\` as a safety flag.
 - Start with \`ghost_analyze_tags\` for SEO tag cleanup work.
+- \`ghost_update_tag\` edits a tag's name/slug/description/visibility (optimistic locking handled internally). Converting an internal (\`#\`) tag to public needs \`visibility\` set explicitly — renaming alone won't flip it.
 - Use \`ghost_sync_status\` to detect drift between ~/blog-drafts/ and Ghost.`;
 
 export function createServer(config: Config): McpServer {

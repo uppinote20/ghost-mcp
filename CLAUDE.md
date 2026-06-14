@@ -76,7 +76,7 @@ npm (package-lock.json)
 | 패턴 | 참고 파일 |
 |------|----------|
 | 새 MCP 도구 추가 | `src/tools/tag-tools.ts` (가장 단순한 예) |
-| Optimistic locking + visibility split | `src/tools/post-tools.ts` ghost_update_post |
+| Optimistic locking + visibility split | `src/tools/post-tools.ts` ghost_update_post · `src/tools/tag-tools.ts` ghost_update_tag |
 | Ghost API 호출 추가 | `src/ghost/client.ts` getPost / getPosts |
 | 입력 검증 helper 재사용 | `src/validation.ts` ghostId / safeSlug |
 | MCP integration 테스트 | `src/tools/tools.test.ts` setupMcpClient |

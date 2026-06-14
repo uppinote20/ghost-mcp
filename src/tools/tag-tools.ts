@@ -1,6 +1,8 @@
 /**
  * @tested src/tools/tools.test.ts
  * @handbook 5.1-zod-schema-and-formatter
+ * @handbook 5.2-optimistic-locking-split
+ * @handbook 5.3-empty-input-guard
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
@@ -69,6 +71,89 @@ export function registerTagTools(server: McpServer, ghost: GhostAdminApi) {
             type: 'text' as const,
             text: [
               `Tag created!`,
+              '',
+              `| Field | Value |`,
+              `|-------|-------|`,
+              `| ID | ${tag.id} |`,
+              `| Name | ${tag.name} |`,
+              `| Slug | ${tag.slug} |`,
+            ].join('\n'),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'ghost_update_tag',
+    'Update an existing Ghost tag (name, slug, and/or description), identified by ID or current slug',
+    {
+      id: ghostId.optional().describe('Tag ID to update'),
+      slug: safeSlug
+        .optional()
+        .describe('Current tag slug (looked up to find the ID)'),
+      name: z.string().optional().describe('New tag name'),
+      new_slug: safeSlug.optional().describe('New tag slug'),
+      description: z.string().optional().describe('New tag description'),
+    },
+    async ({ id, slug, name, new_slug, description }) => {
+      if (!id && !slug) {
+        return {
+          content: [
+            { type: 'text' as const, text: 'Either id or slug is required.' },
+          ],
+          isError: true,
+        };
+      }
+
+      const hasAnyField = [name, new_slug, description].some(
+        (v) => v !== undefined
+      );
+      if (!hasAnyField) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'No fields provided to update (name, new_slug, or description).',
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Fetch the current tag to resolve its ID (slug lookup, delete pattern)
+      // and capture updated_at for optimistic locking — mirrors
+      // ghost_update_post. getTags returns all tags including updated_at.
+      const { tags } = await ghost.getTags();
+      const found = id
+        ? tags.find((t) => t.id === id)
+        : tags.find((t) => t.slug === slug);
+      if (!found) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Tag not found with ${id ? `id: ${id}` : `slug: ${slug}`}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const tag = await ghost.updateTag(found.id, {
+        ...(name !== undefined && { name }),
+        ...(new_slug !== undefined && { slug: new_slug }),
+        ...(description !== undefined && { description }),
+        updated_at: found.updated_at,
+      });
+      audit('update_tag', { id: found.id, name: tag.name, slug: tag.slug });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: [
+              `Tag updated!`,
               '',
               `| Field | Value |`,
               `|-------|-------|`,

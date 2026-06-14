@@ -8,7 +8,7 @@ Create, edit, publish, and sync blog posts directly from Claude Code, Cursor, or
 
 - **Posts** &mdash; list, get, create, update, delete, publish with newsletter
 - **Pages** &mdash; list, get, update
-- **Tags** &mdash; list, create, delete, analyze usage patterns
+- **Tags** &mdash; list, create, update, delete, analyze usage patterns
 - **Images** &mdash; upload local files to Ghost CDN
 - **Sync** &mdash; push local markdown files (`~/blog-drafts/`) to Ghost as drafts
 - **Newsletters** &mdash; list available newsletters for email publishing
@@ -143,6 +143,7 @@ npm test
 | `ghost_update_page` | Update page content and metadata |
 | `ghost_list_tags` | List all tags with post counts |
 | `ghost_create_tag` | Create a new tag |
+| `ghost_update_tag` | Update a tag's name, slug, or description by ID or slug |
 | `ghost_delete_tag` | Delete a tag by ID or slug |
 | `ghost_analyze_tags` | Find unused, low-use, and similar tags |
 | `ghost_push_local` | Push a local markdown file to Ghost as a draft |
